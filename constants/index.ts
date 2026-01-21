@@ -228,15 +228,39 @@ export const AIResponseFormat = `
 
 export const prepareInstructions = ({jobTitle, jobDescription}: { jobTitle: string; jobDescription: string; }) =>
     `You are an expert in ATS (Applicant Tracking System) and resume analysis.
-      Please analyze and rate this resume and suggest how to improve it.
-      The rating can be low if the resume is bad.
-      Be thorough and detailed. Don't be afraid to point out any mistakes or areas for improvement.
-      If there is a lot to improve, don't hesitate to give low scores. This is to help the user to improve their resume.
-      If available, use the job description for the job user is applying to to give more detailed feedback.
-      If provided, take the job description into consideration.
-      The job title is: ${jobTitle}
-      The job description is: ${jobDescription}
-      Provide the feedback using the following format:
+      
+      I am providing you with the TEXT CONTENT extracted from a PDF resume. Please carefully analyze the resume content and provide detailed feedback.
+      
+      IMPORTANT ANALYSIS GUIDELINES: 
+      - Analyze the actual content, structure, formatting, and organization of the resume text
+      - Consider ATS compatibility (how well the resume can be parsed by Applicant Tracking Systems)
+      - Evaluate the resume against the target job description provided below
+      - Pay attention to:
+        * Contact information completeness and formatting
+        * Professional summary or objective clarity
+        * Work experience descriptions (quantified achievements, action verbs, relevance)
+        * Education section completeness
+        * Skills section (hard skills, soft skills, technical skills matching job requirements)
+        * Keywords matching the job description
+        * Overall structure and readability
+        * Grammar, spelling, and professional tone
+      - Be thorough and detailed in your analysis
+      - Don't be afraid to point out mistakes or areas for improvement
+      - If there is a lot to improve, don't hesitate to give low scores. This is to help the user improve their resume.
+      - Consider all pages of the resume if it's a multi-page document
+      
+      TARGET JOB INFORMATION:
+      - Job Title: ${jobTitle}
+      - Job Description: ${jobDescription}
+      
+      Please analyze how well this resume matches the job requirements and provide specific, actionable feedback. Focus on:
+      1. How well the resume content aligns with the job description
+      2. Whether key skills and experiences from the job description are present
+      3. The quality and impact of the content
+      4. ATS optimization (keyword usage, formatting, structure)
+      5. Overall professional presentation
+      
+      Provide the feedback using EXACTLY the following JSON format:
       ${AIResponseFormat}
-      Return the analysis as a JSON object, without any other text and without the backticks.
-      Do not include any other text or comments.`;
+      
+      CRITICAL: Return ONLY the JSON object, without any markdown code blocks, without any explanatory text, and without any backticks. Just the raw JSON.`;

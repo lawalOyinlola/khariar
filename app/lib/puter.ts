@@ -318,24 +318,97 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       return;
     }
 
-    return puter.ai.chat(
-      [
-        {
-          role: "user",
-          content: [
-            {
-              type: "file",
-              puter_path: path,
-            },
-            {
-              type: "text",
-              text: message,
-            },
-          ],
-        },
-      ],
-      { model: "claude-3-7-sonnet" }
-    ) as Promise<AIResponse | undefined>;
+    try {
+      console.log("Calling Puter AI with PDF file path:", path);
+      console.log("Message length:", message.length);
+      console.log("Message preview:", message.substring(0, 200));
+      
+      // Extract text from PDF file (all pages)
+      console.log("Extracting text from PDF resume...");
+      let resumeText: string | undefined;
+      let pageCount = 0;
+      
+      try {
+        const { extractPdfTextFromBlob } = await import("~/lib/pdf2text");
+        const pdfBlob = await readFile(path);
+        
+        if (pdfBlob) {
+          const extractionResult = await extractPdfTextFromBlob(pdfBlob);
+          
+          if (extractionResult.error) {
+            console.warn("PDF text extraction warning:", extractionResult.error);
+            // Continue with empty text if extraction failed
+            resumeText = "";
+          } else {
+            resumeText = extractionResult.text;
+            pageCount = extractionResult.pageCount;
+            console.log(`Extracted resume text from ${pageCount} page(s), length: ${resumeText?.length || 0} characters`);
+            
+            if (resumeText) {
+              if (resumeText.length > 400) {
+                console.log(
+                  "Resume text first 200 chars:", 
+                  resumeText.substring(0, 200)
+                );
+                console.log(
+                  "Resume text last 200 chars:", 
+                  resumeText.substring(resumeText.length - 200)
+                );
+              } else {
+                console.log("Resume text (full):", resumeText);
+              }
+              console.log("Resume text preview:", resumeText.substring(0, 500));
+            }
+          }
+        }
+      } catch (extractionError) {
+        console.error("PDF text extraction failed:", extractionError);
+        const errorMessage = extractionError instanceof Error ? extractionError.message : "Unknown error";
+        setError(`Failed to extract text from PDF: ${errorMessage}`);
+        return undefined;
+      }
+
+      if (!resumeText || resumeText.trim().length === 0) {
+        console.error("No text content extracted from PDF");
+        setError("Failed to extract text from PDF. The PDF may be image-based or scanned. Please ensure your resume PDF contains selectable text.");
+        return undefined;
+      }
+
+      // Create comprehensive prompt with extracted PDF text
+      // Include the full resume text in the message for analysis
+      const enhancedMessage = `${message}\n\n--- RESUME CONTENT (Extracted from PDF, ${pageCount} page(s)) ---\n${resumeText}\n\n--- END OF RESUME CONTENT ---\n\nPlease analyze the resume content above and provide detailed feedback.`;
+
+      // Use text-based chat instead of vision model since we have the text
+      const response = await puter.ai.chat(
+        [
+          {
+            role: "user",
+            content: enhancedMessage,
+          },
+        ],
+        { model: "gpt-5-nano" }
+      ) as AIResponse | undefined;
+
+      console.log("Puter AI response received:", response);
+      
+      if (!response) {
+        console.error("Puter AI returned undefined/null response");
+        return undefined;
+      }
+
+      if (response.message?.refusal) {
+        console.error("Puter AI refused the request:", response.message.refusal);
+        setError(`AI refused the request: ${response.message.refusal}`);
+        return undefined;
+      }
+
+      return response;
+    } catch (error) {
+      console.error("Error calling Puter AI:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setError(`Failed to get AI feedback: ${errorMessage}`);
+      return undefined;
+    }
   };
 
   const img2txt = async (image: string | File | Blob, testMode?: boolean) => {
@@ -371,7 +444,16 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       setError("Puter.js not available");
       return;
     }
-    return puter.kv.delete(key);
+    // Puter.js API might use 'del' instead of 'delete'
+    // Try both methods for compatibility
+    const kvStore = puter.kv as any;
+    if (typeof kvStore.del === 'function') {
+      return kvStore.del(key);
+    } else if (typeof kvStore.delete === 'function') {
+      return kvStore.delete(key);
+    } else {
+      throw new Error("KV delete method not available");
+    }
   };
 
   const listKV = async (pattern: string, returnValues?: boolean) => {
