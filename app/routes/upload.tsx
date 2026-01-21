@@ -61,24 +61,78 @@ const Upload = () => {
         feedback: "",
       };
       await kv.set(`resume:${uuid}`, JSON.stringify(data));
-      setStatusText("Analyzing...");
+      setStatusText("Analyzing PDF content...");
+      // Use PDF path for analysis - extracts text from all pages
       const feedback = await ai.feedback(
         uploadedFile.path,
         prepareInstructions({ jobTitle, jobDescription })
       );
+
       if (!feedback) {
-        setStatusText("Error: Failed to analyze resume");
+        console.error("Feedback is null or undefined");
+        setStatusText("Error: Failed to analyze resume. Please check console for details.");
         return;
       }
-      const feedbackText =
-        typeof feedback.message.content === "string"
-          ? feedback.message.content
-          : feedback.message.content[0].text;
-      data.feedback = JSON.parse(feedbackText);
-      await kv.set(`resume:${uuid}`, JSON.stringify(data));
-      setStatusText("Analysis complete, redirecting...");
 
-      navigate(`/resume/${uuid}`);
+      console.log("Feedback response structure:", feedback);
+      console.log("Feedback message:", feedback.message);
+      console.log("Feedback content:", feedback.message?.content);
+
+      // Extract feedback text from response
+      let feedbackText: string | undefined;
+      try {
+        if (typeof feedback.message.content === "string") {
+          feedbackText = feedback.message.content;
+        } else if (Array.isArray(feedback.message.content)) {
+          // Find text content in array
+          const textItem = feedback.message.content.find(
+            (item: any) => item.type === "text" && item.text
+          );
+          if (textItem?.text) {
+            feedbackText = textItem.text;
+          } else if (feedback.message.content[0]?.text) {
+            feedbackText = feedback.message.content[0].text;
+          } else {
+            throw new Error("No text content found in feedback response array");
+          }
+        } else {
+          throw new Error(`Unexpected content type: ${typeof feedback.message.content}`);
+        }
+
+        if (!feedbackText) {
+          throw new Error("Failed to extract feedback text from response");
+        }
+
+        console.log("Extracted feedback text length:", feedbackText.length);
+        console.log("Feedback text preview:", feedbackText.substring(0, 200));
+
+        // Clean up markdown code blocks if present
+        feedbackText = feedbackText.trim();
+        if (feedbackText.startsWith("```json")) {
+          feedbackText = feedbackText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
+        } else if (feedbackText.startsWith("```")) {
+          feedbackText = feedbackText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+        }
+
+        // Parse JSON feedback
+        const parsedFeedback = JSON.parse(feedbackText);
+        console.log("Successfully parsed feedback:", parsedFeedback);
+
+        data.feedback = parsedFeedback;
+        await kv.set(`resume:${uuid}`, JSON.stringify(data));
+        setStatusText("Analysis complete, redirecting...");
+
+        navigate(`/resume/${uuid}`);
+      } catch (parseError) {
+        console.error("Failed to parse feedback:", parseError);
+        console.error("Raw feedback text:", feedbackText || "Not extracted");
+        console.error("Full feedback response:", JSON.stringify(feedback, null, 2));
+        setStatusText(
+          `Error: Failed to parse feedback. ${parseError instanceof Error ? parseError.message : "Unknown error"}. Check console for details.`
+        );
+        // Still save the resume data so user can see it
+        await kv.set(`resume:${uuid}`, JSON.stringify(data));
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -98,7 +152,7 @@ const Upload = () => {
       setStatusText("Please select a resume file to upload");
       return;
     }
-    
+
     if (!companyName || !jobTitle || !jobDescription) {
       setStatusText("Please fill in all required fields");
       return;
