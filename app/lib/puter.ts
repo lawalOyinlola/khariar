@@ -76,6 +76,10 @@ interface PuterStore {
       path: string,
       message: string
     ) => Promise<AIResponse | undefined>;
+    improveResume: (
+      path: string,
+      message: string
+    ) => Promise<AIResponse | undefined>;
     img2txt: (
       image: string | File | Blob,
       testMode?: boolean
@@ -411,6 +415,87 @@ export const usePuterStore = create<PuterStore>((set, get) => {
     }
   };
 
+  const improveResume = async (path: string, message: string) => {
+    const puter = getPuter();
+    if (!puter) {
+      setError("Puter.js not available");
+      return;
+    }
+
+    try {
+      console.log("Generating improved resume with PDF file path:", path);
+      console.log("Improvement instructions length:", message.length);
+      
+      // Extract text from PDF file (all pages)
+      console.log("Extracting text from PDF resume for improvement...");
+      let resumeText: string | undefined;
+      let pageCount = 0;
+      
+      try {
+        const { extractPdfTextFromBlob } = await import("~/lib/pdf2text");
+        const pdfBlob = await readFile(path);
+        
+        if (pdfBlob) {
+          const extractionResult = await extractPdfTextFromBlob(pdfBlob);
+          
+          if (extractionResult.error) {
+            console.warn("PDF text extraction warning:", extractionResult.error);
+            resumeText = "";
+          } else {
+            resumeText = extractionResult.text;
+            pageCount = extractionResult.pageCount;
+            console.log(`Extracted resume text from ${pageCount} page(s) for improvement`);
+          }
+        }
+      } catch (extractionError) {
+        console.error("PDF text extraction failed:", extractionError);
+        const errorMessage = extractionError instanceof Error ? extractionError.message : "Unknown error";
+        setError(`Failed to extract text from PDF: ${errorMessage}`);
+        return undefined;
+      }
+
+      if (!resumeText || resumeText.trim().length === 0) {
+        console.error("No text content extracted from PDF");
+        setError("Failed to extract text from PDF. The PDF may be image-based or scanned.");
+        return undefined;
+      }
+
+      // Create comprehensive prompt with extracted PDF text and improvement instructions
+      const enhancedMessage = `${message}\n\n--- ORIGINAL RESUME CONTENT (${pageCount} page(s)) ---\n${resumeText}\n\n--- END OF ORIGINAL RESUME CONTENT ---\n\nPlease generate an improved, ATS-optimized resume based on the original content above, the job requirements, and the feedback provided.`;
+
+      // Use text-based chat for resume improvement
+      const response = await puter.ai.chat(
+        [
+          {
+            role: "user",
+            content: enhancedMessage,
+          },
+        ],
+        { model: "gpt-5-nano" }
+      ) as AIResponse | undefined;
+
+      console.log("Resume improvement response received:", response);
+      
+      if (!response) {
+        console.error("Puter AI returned undefined/null response");
+        return undefined;
+      }
+
+      if (response.message?.refusal) {
+        console.error("Puter AI refused the request:", response.message.refusal);
+        setError(`AI refused the request: ${response.message.refusal}`);
+        return undefined;
+      }
+
+      return response;
+    } catch (error) {
+      console.error("Error generating improved resume:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setError(`Failed to generate improved resume: ${errorMessage}`);
+      return undefined;
+    }
+  };
+
   const img2txt = async (image: string | File | Blob, testMode?: boolean) => {
     const puter = getPuter();
     if (!puter) {
@@ -505,6 +590,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         options?: PuterChatOptions
       ) => chat(prompt, imageURL, testMode, options),
       feedback: (path: string, message: string) => feedback(path, message),
+      improveResume: (path: string, message: string) => improveResume(path, message),
       img2txt: (image: string | File | Blob, testMode?: boolean) =>
         img2txt(image, testMode),
     },
