@@ -17,6 +17,7 @@ const Resume = () => {
   const [resumeUrl, setResumeUrl] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingImages, setIsLoadingImages] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,33 +37,49 @@ const Resume = () => {
 
     const loadResume = async () => {
       try {
+        // Load feedback first (fast - from KV store)
         const resumeData = await kv.get(`resume:${id}`);
         if (aborted || !resumeData) return;
-        console.log("I am testing the resume data", resumeData);
 
         const data = JSON.parse(resumeData);
 
-        const resumeBlob = await fs.read(data.resumePath);
-        if (aborted || !resumeBlob) return;
-
-        const imageBlob = await fs.read(data.imagePath);
-        if (aborted || !imageBlob) return;
-
-        const pdfBlob = new Blob([resumeBlob], { type: "application/pdf" });
-        resumeUrl = URL.createObjectURL(pdfBlob);
-        imageUrl = URL.createObjectURL(imageBlob);
-
-        if (aborted) {
-          URL.revokeObjectURL(resumeUrl);
-          URL.revokeObjectURL(imageUrl);
-          return;
+        // Set feedback immediately so UI can render
+        if (data.feedback) {
+          setFeedback(data.feedback);
         }
 
-        setFeedback(data.feedback);
-        setResumeUrl(resumeUrl);
-        setImageUrl(imageUrl);
+        // Load images asynchronously (slower - file system reads)
+        setIsLoadingImages(true);
+        Promise.all([
+          fs.read(data.resumePath),
+          fs.read(data.imagePath)
+        ]).then(([resumeBlob, imageBlob]) => {
+          if (aborted || !resumeBlob || !imageBlob) {
+            setIsLoadingImages(false);
+            return;
+          }
+
+          const pdfBlob = new Blob([resumeBlob], { type: "application/pdf" });
+          resumeUrl = URL.createObjectURL(pdfBlob);
+          imageUrl = URL.createObjectURL(imageBlob);
+
+          if (aborted) {
+            URL.revokeObjectURL(resumeUrl);
+            URL.revokeObjectURL(imageUrl);
+            setIsLoadingImages(false);
+            return;
+          }
+
+          setResumeUrl(resumeUrl);
+          setImageUrl(imageUrl);
+          setIsLoadingImages(false);
+        }).catch((error) => {
+          console.error("Failed to load resume images:", error);
+          setIsLoadingImages(false);
+          // Don't set error here - feedback is already shown
+        });
       } catch (error) {
-        console.error("Failed to load and process resume:", error);
+        console.error("Failed to load resume data:", error);
         setError("Failed to load resume. Please try again.");
         if (resumeUrl) URL.revokeObjectURL(resumeUrl);
         if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -99,7 +116,17 @@ const Resume = () => {
       </nav>
       <div className="flex flex-row w-full max-lg:flex-col-reverse">
         <section className="feedback-section bg-[url('/images/bg-small.svg')] bg-cover h-screen sticky top-0 items-center justify-center">
-          {imageUrl && resumeUrl && (
+          {isLoadingImages ? (
+            <div className="flex flex-col items-center justify-center h-[90%] max-w-xl:w-full">
+              <div className="relative w-16 h-16">
+                <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+              </div>
+              <p className="mt-4 text-gray-600 text-sm font-medium">
+                Loading resume preview...
+              </p>
+            </div>
+          ) : imageUrl && resumeUrl ? (
             <div className="animate-in fade-in duration-1000 gradient-border max-sm:m-0 h-[90%] max-w-xl:h-fit w-fit">
               <a href={resumeUrl} target="_blank" rel="noopener noreferrer">
                 <img
@@ -110,7 +137,7 @@ const Resume = () => {
                 />
               </a>
             </div>
-          )}
+          ) : null}
         </section>
         <section className="feedback-section">
           <h2 className="text-4xl text-black! font-bold">Resume Review</h2>
@@ -124,6 +151,34 @@ const Resume = () => {
                 suggestions={feedback.ATS.tips || []}
               />
               <Details feedback={feedback} />
+              <div className="mt-4 p-6 bg-linear-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  Ready to improve your resume?
+                </h3>
+                <p className="text-gray-700 mb-4">
+                  Get an ATS-optimized, improved version of your resume with
+                  specific content for each section.
+                </p>
+                <Link
+                  to={`/improve/${id}`}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <span>Generate Improved Resume</span>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 7l5 5m0 0l-5 5m5-5H6"
+                    />
+                  </svg>
+                </Link>
+              </div>
             </div>
           ) : (
             <img
