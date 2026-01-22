@@ -6,6 +6,9 @@ import { useNavigate } from "react-router";
 import { convertPdfToImage } from "~/lib/pdf2img";
 import { generateUUID } from "~/lib/utils";
 import { prepareInstructions } from "../../constants";
+import { showError, showLoading, updateToSuccess, updateToError } from "~/lib/toast";
+import { parseAIResponseAsJSON, extractTextFromAIResponse, cleanMarkdownCodeBlocks } from "~/lib/ai-response-parser";
+import { extractErrorMessage } from "~/lib/error-handler";
 
 const Upload = () => {
   const { fs, ai, kv } = usePuterStore();
@@ -30,25 +33,35 @@ const Upload = () => {
     file: File;
   }) => {
     setIsProcessing(true);
+    const loadingToast = showLoading("Starting analysis...");
+
     try {
       setStatusText("Uploading the file...");
       const uploadedFile = await fs.upload([file]);
       if (!uploadedFile) {
+        updateToError(loadingToast, "Upload failed", "Failed to upload file. Please try again.");
         setStatusText("Error: Failed to upload file");
         return;
       }
+
       setStatusText("Converting to image...");
       const imageFile = await convertPdfToImage(file);
-      if (!imageFile.file) {
-        setStatusText("Error: Failed to convert PDF to image");
+      if (!imageFile.file || imageFile.error) {
+        const errorMessage = imageFile.error || "Failed to convert PDF to image";
+        console.error("PDF to image conversion error:", errorMessage);
+        updateToError(loadingToast, "Conversion failed", errorMessage);
+        setStatusText(`Error: ${errorMessage}`);
         return;
       }
+
       setStatusText("Uploading the image...");
       const uploadedImage = await fs.upload([imageFile.file]);
       if (!uploadedImage) {
+        updateToError(loadingToast, "Upload failed", "Failed to upload image. Please try again.");
         setStatusText("Error: Failed to upload image");
         return;
       }
+
       setStatusText("Preparing data...");
       const uuid = generateUUID();
       const data = {
@@ -61,6 +74,7 @@ const Upload = () => {
         feedback: "",
       };
       await kv.set(`resume:${uuid}`, JSON.stringify(data));
+
       setStatusText("Analyzing PDF content...");
       // Use PDF path for analysis - extracts text from all pages
       const feedback = await ai.feedback(
@@ -69,70 +83,53 @@ const Upload = () => {
       );
 
       if (!feedback) {
-        console.error("Feedback is null or undefined");
+        updateToError(loadingToast, "Analysis failed", "Failed to analyze resume. Please try again.");
         setStatusText("Error: Failed to analyze resume. Please check console for details.");
         return;
       }
 
-      console.log("Feedback response structure:", feedback);
-      console.log("Feedback message:", feedback.message);
-      console.log("Feedback content:", feedback.message?.content);
+      // Parse feedback using reusable utility
+      const parsedFeedback = parseAIResponseAsJSON(feedback);
 
-      // Extract feedback text from response
-      let feedbackText: string | undefined;
-      try {
-        if (typeof feedback.message.content === "string") {
-          feedbackText = feedback.message.content;
-        } else if (Array.isArray(feedback.message.content)) {
-          // Find text content in array
-          const textItem = feedback.message.content.find(
-            (item: any) => item.type === "text" && item.text
-          );
-          if (textItem?.text) {
-            feedbackText = textItem.text;
-          } else if (feedback.message.content[0]?.text) {
-            feedbackText = feedback.message.content[0].text;
-          } else {
-            throw new Error("No text content found in feedback response array");
+      if (!parsedFeedback) {
+        // Fallback: try extracting text manually if JSON parsing fails
+        const feedbackText = extractTextFromAIResponse(feedback);
+        if (feedbackText) {
+          try {
+            const cleaned = cleanMarkdownCodeBlocks(feedbackText);
+            const parsed = JSON.parse(cleaned);
+            data.feedback = parsed;
+            await kv.set(`resume:${uuid}`, JSON.stringify(data));
+            updateToSuccess(loadingToast, "Analysis complete!", "Redirecting to results...");
+            setStatusText("Analysis complete, redirecting...");
+            navigate(`/resume/${uuid}`);
+            return;
+          } catch (parseError) {
+            console.error("Failed to parse feedback:", parseError);
+            console.error("Raw feedback text:", feedbackText);
+            updateToError(loadingToast, "Parse error", extractErrorMessage(parseError, "Failed to parse feedback"));
+            setStatusText(`Error: Failed to parse feedback. ${extractErrorMessage(parseError)}`);
+            // Still save the resume data so user can see it
+            await kv.set(`resume:${uuid}`, JSON.stringify(data));
+            return;
           }
-        } else {
-          throw new Error(`Unexpected content type: ${typeof feedback.message.content}`);
         }
-
-        if (!feedbackText) {
-          throw new Error("Failed to extract feedback text from response");
-        }
-
-        console.log("Extracted feedback text length:", feedbackText.length);
-        console.log("Feedback text preview:", feedbackText.substring(0, 200));
-
-        // Clean up markdown code blocks if present
-        feedbackText = feedbackText.trim();
-        if (feedbackText.startsWith("```json")) {
-          feedbackText = feedbackText.replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
-        } else if (feedbackText.startsWith("```")) {
-          feedbackText = feedbackText.replace(/^```\s*/, "").replace(/\s*```$/, "");
-        }
-
-        // Parse JSON feedback
-        const parsedFeedback = JSON.parse(feedbackText);
-        console.log("Successfully parsed feedback:", parsedFeedback);
-
-        data.feedback = parsedFeedback;
+        updateToError(loadingToast, "Parse error", "Failed to extract feedback from response");
+        setStatusText("Error: Failed to parse feedback");
         await kv.set(`resume:${uuid}`, JSON.stringify(data));
-        setStatusText("Analysis complete, redirecting...");
-
-        navigate(`/resume/${uuid}`);
-      } catch (parseError) {
-        console.error("Failed to parse feedback:", parseError);
-        console.error("Raw feedback text:", feedbackText || "Not extracted");
-        console.error("Full feedback response:", JSON.stringify(feedback, null, 2));
-        setStatusText(
-          `Error: Failed to parse feedback. ${parseError instanceof Error ? parseError.message : "Unknown error"}. Check console for details.`
-        );
-        // Still save the resume data so user can see it
-        await kv.set(`resume:${uuid}`, JSON.stringify(data));
+        return;
       }
+
+      data.feedback = parsedFeedback;
+      await kv.set(`resume:${uuid}`, JSON.stringify(data));
+      updateToSuccess(loadingToast, "Analysis complete!", "Redirecting to results...");
+      setStatusText("Analysis complete, redirecting...");
+      navigate(`/resume/${uuid}`);
+    } catch (error) {
+      const errorMessage = extractErrorMessage(error, "An unexpected error occurred");
+      updateToError(loadingToast, "Error", errorMessage);
+      setStatusText(`Error: ${errorMessage}`);
+      showError("Analysis failed", errorMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -149,11 +146,13 @@ const Upload = () => {
     const jobDescription = formData.get("job-description") as string;
 
     if (!file) {
+      showError("File required", "Please select a resume file to upload");
       setStatusText("Please select a resume file to upload");
       return;
     }
 
     if (!companyName || !jobTitle || !jobDescription) {
+      showError("Fields required", "Please fill in all required fields");
       setStatusText("Please fill in all required fields");
       return;
     }

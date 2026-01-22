@@ -4,6 +4,10 @@ import { usePuterStore } from "~/lib/puter";
 import ResumeImprovement from "~/components/ResumeImprovement";
 import ResumeFormatTips from "~/components/ResumeFormatTips";
 import { prepareImprovementInstructions } from "../../constants";
+import { downloadResumePDF } from "~/lib/generateResumePDF";
+import { showError, showSuccess, showLoading, updateToSuccess, updateToError } from "~/lib/toast";
+import { parseAIResponseAsJSON, extractTextFromAIResponse, cleanMarkdownCodeBlocks } from "~/lib/ai-response-parser";
+import { extractErrorMessage } from "~/lib/error-handler";
 
 export const meta = () => [
   { title: "Resumind | Improved Resume" },
@@ -15,9 +19,32 @@ const Improve = () => {
   const { id } = useParams();
   const [improvedResume, setImprovedResume] = useState<ImprovedResume | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resumeData, setResumeData] = useState<any>(null);
   const navigate = useNavigate();
+
+  const handleDownloadPDF = async () => {
+    if (!improvedResume) return;
+
+    setIsGeneratingPDF(true);
+    const loadingToast = showLoading("Generating PDF...");
+    try {
+      const fileName = resumeData?.jobTitle
+        ? `Resume-${resumeData.jobTitle.replace(/\s+/g, "-")}-${id}.pdf`
+        : `Improved-Resume-${id}.pdf`;
+      await downloadResumePDF(improvedResume, fileName);
+      updateToSuccess(loadingToast, "PDF generated!", "Your resume PDF has been downloaded.");
+      showSuccess("PDF downloaded successfully");
+    } catch (error) {
+      const errorMessage = extractErrorMessage(error, "Failed to generate PDF");
+      updateToError(loadingToast, "PDF generation failed", errorMessage);
+      setError(errorMessage);
+      showError("PDF generation failed", errorMessage);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   useEffect(() => {
     if (!auth.isAuthenticated && !isLoading) {
@@ -31,9 +58,11 @@ const Improve = () => {
     }
 
     const loadAndImprove = async () => {
+      const loadingToast = showLoading("Loading resume...");
       try {
         const resumeDataStr = await kv.get(`resume:${id}`);
         if (!resumeDataStr) {
+          updateToError(loadingToast, "Resume not found", "Please upload a resume first.");
           setError("Resume not found. Please upload a resume first.");
           return;
         }
@@ -47,20 +76,24 @@ const Improve = () => {
           try {
             const improved = JSON.parse(improvedResumeStr);
             setImprovedResume(improved);
+            updateToSuccess(loadingToast, "Resume loaded", "Displaying improved resume...");
             return;
           } catch (e) {
             console.error("Failed to parse existing improved resume:", e);
+            // Continue to generate new one
           }
         }
 
         // Generate improved resume if it doesn't exist
         if (!data.feedback || !data.resumePath) {
+          updateToError(loadingToast, "Feedback not found", "Please analyze your resume first.");
           setError("Resume feedback not found. Please analyze your resume first.");
           return;
         }
 
         setIsGenerating(true);
         setError(null);
+        updateToSuccess(loadingToast, "Generating improved resume...", "This may take a moment.");
 
         // Extract page count from PDF for formatting recommendations
         let pageCount: number | undefined;
@@ -89,61 +122,47 @@ const Improve = () => {
         );
 
         if (!response) {
+          updateToError(loadingToast, "Generation failed", "Failed to generate improved resume. Please try again.");
           setError("Failed to generate improved resume. Please try again.");
           setIsGenerating(false);
           return;
         }
 
-        // Extract and parse the improved resume
-        let improvedResumeText: string | undefined;
-        try {
-          if (typeof response.message.content === "string") {
-            improvedResumeText = response.message.content;
-          } else if (Array.isArray(response.message.content)) {
-            const textItem = response.message.content.find(
-              (item: any) => item.type === "text" && item.text
-            );
-            if (textItem?.text) {
-              improvedResumeText = textItem.text;
-            } else if (response.message.content[0]?.text) {
-              improvedResumeText = response.message.content[0].text;
+        // Parse improved resume using reusable utility
+        const parsedImprovedResume = parseAIResponseAsJSON(response);
+
+        if (!parsedImprovedResume) {
+          // Fallback: try extracting text manually
+          const improvedResumeText = extractTextFromAIResponse(response);
+          if (improvedResumeText) {
+            try {
+              const cleaned = cleanMarkdownCodeBlocks(improvedResumeText);
+              const parsed = JSON.parse(cleaned);
+              setImprovedResume(parsed);
+              await kv.set(`improved-resume:${id}`, JSON.stringify(parsed));
+              updateToSuccess(loadingToast, "Resume improved!", "Your improved resume is ready.");
+              return;
+            } catch (parseError) {
+              const errorMessage = extractErrorMessage(parseError, "Failed to parse improved resume");
+              updateToError(loadingToast, "Parse error", errorMessage);
+              setError(`Failed to parse improved resume. ${errorMessage}`);
+              return;
             }
           }
-
-          if (!improvedResumeText) {
-            throw new Error("No text content found in improvement response");
-          }
-
-          // Clean up markdown code blocks if present
-          improvedResumeText = improvedResumeText.trim();
-          if (improvedResumeText.startsWith("```json")) {
-            improvedResumeText = improvedResumeText
-              .replace(/^```json\s*/i, "")
-              .replace(/\s*```$/i, "");
-          } else if (improvedResumeText.startsWith("```")) {
-            improvedResumeText = improvedResumeText
-              .replace(/^```\s*/, "")
-              .replace(/\s*```$/, "");
-          }
-
-          const parsedImprovedResume = JSON.parse(improvedResumeText);
-          setImprovedResume(parsedImprovedResume);
-
-          // Save improved resume for future use
-          await kv.set(
-            `improved-resume:${id}`,
-            JSON.stringify(parsedImprovedResume)
-          );
-        } catch (parseError) {
-          console.error("Failed to parse improved resume:", parseError);
-          console.error("Raw response:", improvedResumeText || "Not extracted");
-          setError(
-            `Failed to parse improved resume. ${parseError instanceof Error ? parseError.message : "Unknown error"}`
-          );
+          updateToError(loadingToast, "Parse error", "Failed to extract improved resume from response");
+          setError("Failed to parse improved resume");
+          return;
         }
+
+        setImprovedResume(parsedImprovedResume);
+        await kv.set(`improved-resume:${id}`, JSON.stringify(parsedImprovedResume));
+        updateToSuccess(loadingToast, "Resume improved!", "Your improved resume is ready.");
       } catch (error) {
+        const errorMessage = extractErrorMessage(error, "Failed to generate improved resume");
         console.error("Failed to load and improve resume:", error);
-        setError("Failed to generate improved resume. Please try again.");
+        updateToError(loadingToast, "Error", errorMessage);
+        setError(errorMessage);
+        showError("Failed to generate improved resume", errorMessage);
       } finally {
         setIsGenerating(false);
       }
@@ -153,7 +172,7 @@ const Improve = () => {
   }, [id, kv, fs, ai]);
 
   return (
-    <main className="pt-0!">
+    <main className="pt-0! pb-20">
       <nav className="resume-nav">
         <Link to={`/resume/${id}`} className="back-button">
           <img
@@ -169,11 +188,66 @@ const Improve = () => {
       </nav>
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl text-black! font-bold mb-2">
-            Improved Resume
-          </h1>
-          <hr className="border-gray-200 mb-2" />
-          <p className="text-gray-600">Your ATS-optimized resume with improvements highlighted.</p>
+          <div className="flex-1">
+            <div className="flex items-center justify-between gap-4 mb-2 border-b border-gray-200">
+              <h1 className="text-4xl text-black! font-bold mb-2">
+                Improved Resume
+              </h1>
+              {improvedResume && (
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={isGeneratingPDF}
+                  className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGeneratingPDF ? (
+                    <>
+                      <svg
+                        className="animate-spin h-5 w-5"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      Download PDF
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            <p className="text-gray-600">
+              Your ATS-optimized resume with improvements highlighted.
+            </p>
+          </div>
         </div>
 
         {error ? (

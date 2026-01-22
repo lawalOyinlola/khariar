@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface ResumeImprovementProps {
   improvedResume: ImprovedResume;
@@ -6,16 +6,36 @@ interface ResumeImprovementProps {
 
 const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const copyToClipboard = async (text: string, sectionId: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedSection(sectionId);
-      setTimeout(() => setCopiedSection(null), 2000);
+
+      // Clear any existing timeout before creating a new one
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Create new timeout and store it in the ref
+      timeoutRef.current = setTimeout(() => {
+        setCopiedSection(null);
+        timeoutRef.current = null;
+      }, 2000);
     } catch (err) {
       console.error("Failed to copy text:", err);
     }
   };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   const SectionHeader = ({
     title,
@@ -48,6 +68,8 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
         </div>
       </div>
       <button
+        type="button"
+        title="Copy to clipboard"
         onClick={() => copyToClipboard(content, sectionId)}
         className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
       >

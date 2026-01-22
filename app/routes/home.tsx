@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router";
 import Navbar from "~/components/Navbar";
 import ResumeCard from "~/components/ResumeCard";
 import { usePuterStore } from "~/lib/puter";
+import { showError } from "~/lib/toast";
+import { extractErrorMessage } from "~/lib/error-handler";
 
 export function meta() {
   return [
@@ -36,6 +38,8 @@ export default function Home() {
         setResumes(parsedResumes || []);
       } catch (error) {
         console.error("Failed to load resumes:", error);
+        const errorMessage = extractErrorMessage(error, "Failed to load resumes");
+        showError("Failed to load resumes", errorMessage);
         setResumes([]);
       } finally {
         setLoadingResumes(false);
@@ -46,7 +50,7 @@ export default function Home() {
   }, [kv]);
 
   return (
-    <main className="bg-[url('/images/bg-main.svg')] bg-cover">
+    <main className="bg-[url('/images/bg-main.svg')] bg-cover py-32">
       <Navbar />
 
       <section className="main-section">
