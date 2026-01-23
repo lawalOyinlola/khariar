@@ -8,6 +8,8 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import { PuterScriptLoader } from "~/components/PuterScriptLoader";
+import Footer from "~/components/Footer";
+import { Toaster } from "sonner";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -32,10 +34,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body suppressHydrationWarning>
+      <body suppressHydrationWarning className="flex flex-col min-h-screen">
         <PuterScriptLoader />
-
         {children}
+        <Footer />
+        <Toaster position="top-right" richColors />
         <ScrollRestoration />
         <Scripts />
       </body>

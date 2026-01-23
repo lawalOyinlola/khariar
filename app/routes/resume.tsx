@@ -4,6 +4,8 @@ import { usePuterStore } from "~/lib/puter";
 import Summary from "~/components/Summary";
 import ATS from "~/components/ATS";
 import Details from "~/components/Details";
+import { showError } from "~/lib/toast";
+import { extractErrorMessage } from "~/lib/error-handler";
 
 export const meta = () => [
   { title: "Resumind | Review" },
@@ -76,11 +78,15 @@ const Resume = () => {
         }).catch((error) => {
           console.error("Failed to load resume images:", error);
           setIsLoadingImages(false);
+          const errorMessage = extractErrorMessage(error, "Failed to load resume images");
+          showError("Image loading failed", errorMessage);
           // Don't set error here - feedback is already shown
         });
       } catch (error) {
         console.error("Failed to load resume data:", error);
-        setError("Failed to load resume. Please try again.");
+        const errorMessage = extractErrorMessage(error, "Failed to load resume");
+        setError(errorMessage);
+        showError("Failed to load resume", errorMessage);
         if (resumeUrl) URL.revokeObjectURL(resumeUrl);
         if (imageUrl) URL.revokeObjectURL(imageUrl);
       }
@@ -139,7 +145,7 @@ const Resume = () => {
             </div>
           ) : null}
         </section>
-        <section className="feedback-section">
+        <section className="feedback-section pb-20">
           <h2 className="text-4xl text-black! font-bold">Resume Review</h2>
           {error ? (
             <div className="text-red-600 text-center p-4">{error}</div>

@@ -1,4 +1,8 @@
 import { create } from "zustand";
+import { extractErrorMessage } from "./error-handler";
+import { extractPdfTextFromPath, validatePdfExtraction } from "./pdf-utils";
+import { validateAIResponse } from "./ai-response-parser";
+import { showErrorFromException, showLoading, dismissToast } from "./toast";
 
 declare global {
   interface Window {
@@ -118,15 +122,36 @@ export const usePuterStore = create<PuterStore>((set, get) => {
   });
 
   const setError = (msg: string) => {
+    const { puterReady } = get();
+    // Don't show errors if Puter.js is still loading
+    if (!puterReady) {
+      // Just set the error state silently, don't show toast
+      set({
+        error: msg,
+        isLoading: false,
+        auth: createAuthState(null, false),
+      });
+      return;
+    }
+    
+    // Only show toast if Puter.js has finished loading (either successfully or failed)
     set({
       error: msg,
       isLoading: false,
       auth: createAuthState(null, false),
     });
+    showErrorFromException(msg, "An error occurred");
   };
 
   const checkAuthStatus = async (): Promise<boolean> => {
     const puter = getPuter();
+    const { puterReady } = get();
+    
+    // If Puter.js is not available but still loading, just return false silently
+    if (!puter && !puterReady) {
+      return false;
+    }
+    
     if (!puter) {
       setError("Puter.js not available");
       return false;
@@ -151,8 +176,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         return false;
       }
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to check auth status";
+      const msg = extractErrorMessage(err, "Failed to check auth status");
       setError(msg);
       return false;
     }
@@ -171,7 +195,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       await puter.auth.signIn();
       await checkAuthStatus();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Sign in failed";
+      const msg = extractErrorMessage(err, "Sign in failed");
       setError(msg);
     }
   };
@@ -192,7 +216,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         isLoading: false,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Sign out failed";
+      const msg = extractErrorMessage(err, "Sign out failed");
       setError(msg);
     }
   };
@@ -213,7 +237,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         isLoading: false,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to refresh user";
+      const msg = extractErrorMessage(err, "Failed to refresh user");
       setError(msg);
     }
   };
@@ -222,11 +246,16 @@ export const usePuterStore = create<PuterStore>((set, get) => {
   // This handles the case where the external script loads asynchronously
   let pollingInterval: NodeJS.Timeout | null = null;
   let pollingTimeout: NodeJS.Timeout | null = null;
+  let loadingToastId: string | number | null = null;
 
   const init = (): void => {
     // Clean up any existing timers
     if (pollingInterval) clearInterval(pollingInterval);
     if (pollingTimeout) clearTimeout(pollingTimeout);
+    if (loadingToastId) {
+      dismissToast(loadingToastId);
+      loadingToastId = null;
+    }
 
     const puter = getPuter();
     if (puter) {
@@ -235,10 +264,17 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       return;
     }
 
+    // Show loading toast
+    loadingToastId = showLoading("Initializing...");
+
     pollingInterval = setInterval(() => {
       if (getPuter()) {
         if (pollingInterval) clearInterval(pollingInterval);
         pollingInterval = null;
+        if (loadingToastId) {
+          dismissToast(loadingToastId);
+          loadingToastId = null;
+        }
         set({ puterReady: true });
         checkAuthStatus();
       }
@@ -248,6 +284,12 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       if (pollingInterval) clearInterval(pollingInterval);
       pollingInterval = null;
       pollingTimeout = null;
+      if (loadingToastId) {
+        dismissToast(loadingToastId);
+        loadingToastId = null;
+      }
+      // Mark as ready (even if failed) so we can show errors
+      set({ puterReady: true });
       if (!getPuter()) {
         setError("Puter.js failed to load within 10 seconds");
       }
@@ -327,59 +369,20 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       console.log("Message length:", message.length);
       console.log("Message preview:", message.substring(0, 200));
       
-      // Extract text from PDF file (all pages)
+      // Extract text from PDF file using reusable utility
       console.log("Extracting text from PDF resume...");
-      let resumeText: string | undefined;
-      let pageCount = 0;
+      const extractionResult = await extractPdfTextFromPath(readFile, path);
       
-      try {
-        const { extractPdfTextFromBlob } = await import("~/lib/pdf2text");
-        const pdfBlob = await readFile(path);
-        
-        if (pdfBlob) {
-          const extractionResult = await extractPdfTextFromBlob(pdfBlob);
-          
-          if (extractionResult.error) {
-            console.warn("PDF text extraction warning:", extractionResult.error);
-            // Continue with empty text if extraction failed
-            resumeText = "";
-          } else {
-            resumeText = extractionResult.text;
-            pageCount = extractionResult.pageCount;
-            console.log(`Extracted resume text from ${pageCount} page(s), length: ${resumeText?.length || 0} characters`);
-            
-            if (resumeText) {
-              if (resumeText.length > 400) {
-                console.log(
-                  "Resume text first 200 chars:", 
-                  resumeText.substring(0, 200)
-                );
-                console.log(
-                  "Resume text last 200 chars:", 
-                  resumeText.substring(resumeText.length - 200)
-                );
-              } else {
-                console.log("Resume text (full):", resumeText);
-              }
-              console.log("Resume text preview:", resumeText.substring(0, 500));
-            }
-          }
-        }
-      } catch (extractionError) {
-        console.error("PDF text extraction failed:", extractionError);
-        const errorMessage = extractionError instanceof Error ? extractionError.message : "Unknown error";
-        setError(`Failed to extract text from PDF: ${errorMessage}`);
+      const validation = validatePdfExtraction(extractionResult);
+      if (!validation.valid) {
+        setError(validation.error || "Failed to extract text from PDF");
         return undefined;
       }
 
-      if (!resumeText || resumeText.trim().length === 0) {
-        console.error("No text content extracted from PDF");
-        setError("Failed to extract text from PDF. The PDF may be image-based or scanned. Please ensure your resume PDF contains selectable text.");
-        return undefined;
-      }
+      const { text: resumeText, pageCount } = extractionResult;
+      console.log(`Extracted resume text from ${pageCount} page(s), length: ${resumeText.length} characters`);
 
       // Create comprehensive prompt with extracted PDF text
-      // Include the full resume text in the message for analysis
       const enhancedMessage = `${message}\n\n--- RESUME CONTENT (Extracted from PDF, ${pageCount} page(s)) ---\n${resumeText}\n\n--- END OF RESUME CONTENT ---\n\nPlease analyze the resume content above and provide detailed feedback.`;
 
       // Use text-based chat instead of vision model since we have the text
@@ -395,21 +398,17 @@ export const usePuterStore = create<PuterStore>((set, get) => {
 
       console.log("Puter AI response received:", response);
       
-      if (!response) {
-        console.error("Puter AI returned undefined/null response");
-        return undefined;
-      }
-
-      if (response.message?.refusal) {
-        console.error("Puter AI refused the request:", response.message.refusal);
-        setError(`AI refused the request: ${response.message.refusal}`);
+      // Validate response using reusable utility
+      const responseValidation = validateAIResponse(response);
+      if (!responseValidation.valid) {
+        setError(responseValidation.error || "Invalid AI response");
         return undefined;
       }
 
       return response;
     } catch (error) {
       console.error("Error calling Puter AI:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage = extractErrorMessage(error, "Unknown error");
       setError(`Failed to get AI feedback: ${errorMessage}`);
       return undefined;
     }
@@ -426,39 +425,18 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       console.log("Generating improved resume with PDF file path:", path);
       console.log("Improvement instructions length:", message.length);
       
-      // Extract text from PDF file (all pages)
+      // Extract text from PDF file using reusable utility
       console.log("Extracting text from PDF resume for improvement...");
-      let resumeText: string | undefined;
-      let pageCount = 0;
+      const extractionResult = await extractPdfTextFromPath(readFile, path);
       
-      try {
-        const { extractPdfTextFromBlob } = await import("~/lib/pdf2text");
-        const pdfBlob = await readFile(path);
-        
-        if (pdfBlob) {
-          const extractionResult = await extractPdfTextFromBlob(pdfBlob);
-          
-          if (extractionResult.error) {
-            console.warn("PDF text extraction warning:", extractionResult.error);
-            resumeText = "";
-          } else {
-            resumeText = extractionResult.text;
-            pageCount = extractionResult.pageCount;
-            console.log(`Extracted resume text from ${pageCount} page(s) for improvement`);
-          }
-        }
-      } catch (extractionError) {
-        console.error("PDF text extraction failed:", extractionError);
-        const errorMessage = extractionError instanceof Error ? extractionError.message : "Unknown error";
-        setError(`Failed to extract text from PDF: ${errorMessage}`);
+      const validation = validatePdfExtraction(extractionResult);
+      if (!validation.valid) {
+        setError(validation.error || "Failed to extract text from PDF");
         return undefined;
       }
 
-      if (!resumeText || resumeText.trim().length === 0) {
-        console.error("No text content extracted from PDF");
-        setError("Failed to extract text from PDF. The PDF may be image-based or scanned.");
-        return undefined;
-      }
+      const { text: resumeText, pageCount } = extractionResult;
+      console.log(`Extracted resume text from ${pageCount} page(s) for improvement`);
 
       // Create comprehensive prompt with extracted PDF text and improvement instructions
       const enhancedMessage = `${message}\n\n--- ORIGINAL RESUME CONTENT (${pageCount} page(s)) ---\n${resumeText}\n\n--- END OF ORIGINAL RESUME CONTENT ---\n\nPlease generate an improved, ATS-optimized resume based on the original content above, the job requirements, and the feedback provided.`;
@@ -474,23 +452,19 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         { model: "gpt-5-nano" }
       ) as AIResponse | undefined;
 
-      console.log("Resume improvement response received:", response);
+      console.log("Resume improvement response received.");
       
-      if (!response) {
-        console.error("Puter AI returned undefined/null response");
-        return undefined;
-      }
-
-      if (response.message?.refusal) {
-        console.error("Puter AI refused the request:", response.message.refusal);
-        setError(`AI refused the request: ${response.message.refusal}`);
+      // Validate response using reusable utility
+      const responseValidation = validateAIResponse(response);
+      if (!responseValidation.valid) {
+        setError(responseValidation.error || "Invalid AI response");
         return undefined;
       }
 
       return response;
     } catch (error) {
       console.error("Error generating improved resume:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage = extractErrorMessage(error, "Unknown error");
       setError(`Failed to generate improved resume: ${errorMessage}`);
       return undefined;
     }

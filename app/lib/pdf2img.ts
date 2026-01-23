@@ -16,8 +16,7 @@ async function loadPdfJs(): Promise<any> {
   // @ts-expect-error - pdfjs-dist/build/pdf.mjs is not a module
   loadPromise = import("pdfjs-dist/build/pdf.mjs")
     .then(async (lib) => {
-      // Use local worker file (copied from node_modules to match version 5.4.394)
-      // Alternative: Use CDN: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.394/pdf.worker.min.mjs`
+      // Use worker from public folder (copied from node_modules to match version)
       lib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
       pdfjsLib = lib;
@@ -27,8 +26,9 @@ async function loadPdfJs(): Promise<any> {
     .catch((err) => {
       isLoading = false;
       loadPromise = null;
-      console.error("PDF.js import error:", err);
-      throw err;
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("PDF.js import error:", errorMessage, err);
+      throw new Error(`Failed to load PDF.js library: ${errorMessage}`);
     });
 
   return loadPromise;
@@ -38,11 +38,45 @@ export async function convertPdfToImage(
   file: File
 ): Promise<PdfConversionResult> {
   try {
-    const lib = await loadPdfJs();
+    let lib;
+    try {
+      lib = await loadPdfJs();
+    } catch (loadError) {
+      const errorMessage = loadError instanceof Error ? loadError.message : String(loadError);
+      console.error("Failed to load PDF.js library:", loadError);
+      return {
+        imageUrl: "",
+        file: null,
+        error: `Failed to load PDF.js library: ${errorMessage}. Please ensure the PDF.js worker file is available.`,
+      };
+    }
 
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await lib.getDocument({ data: arrayBuffer }).promise;
-    const page = await pdf.getPage(1);
+    let pdf;
+    try {
+      pdf = await lib.getDocument({ data: arrayBuffer }).promise;
+    } catch (pdfError) {
+      const errorMessage = pdfError instanceof Error ? pdfError.message : String(pdfError);
+      console.error("Failed to load PDF document:", pdfError);
+      return {
+        imageUrl: "",
+        file: null,
+        error: `Failed to load PDF document: ${errorMessage}. The file may be corrupted or not a valid PDF.`,
+      };
+    }
+    
+    let page;
+    try {
+      page = await pdf.getPage(1);
+    } catch (pageError) {
+      const errorMessage = pageError instanceof Error ? pageError.message : String(pageError);
+      console.error("Failed to get PDF page:", pageError);
+      return {
+        imageUrl: "",
+        file: null,
+        error: `Failed to get PDF page: ${errorMessage}. The PDF may be empty or corrupted.`,
+      };
+    }
 
     const viewport = page.getViewport({ scale: 4 });
     const canvas = document.createElement("canvas");
@@ -91,10 +125,12 @@ export async function convertPdfToImage(
       ); // Set quality to maximum (1.0)
     });
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("PDF to image conversion error:", err);
     return {
       imageUrl: "",
       file: null,
-      error: `Failed to convert PDF: ${err}`,
+      error: `Failed to convert PDF: ${errorMessage}`,
     };
   }
 }
