@@ -22,14 +22,17 @@ html,
 body {
   @apply bg-white;
 }
-
 main {
   @apply min-h-screen pt-10;
 }
+
+body:has(.modal) {
+ @apply overflow-hidden!;
+}
+
 h1 {
   @apply text-6xl  text-gradient leading-tight tracking-[-2px] font-semibold;
 }
-
 h2 {
   @apply text-3xl text-dark-200;
 }
@@ -38,11 +41,19 @@ label {
   @apply text-dark-200;
 }
 input {
-  @apply w-full p-4 inset-shadow rounded-2xl focus:outline-none bg-white;
+  @apply w-full p-4 inset-shadow rounded-2xl focus:outline-none bg-white transition-all duration-200;
+}
+
+input.input-error {
+  @apply border-2 border-red-400 shadow-[0_0_0_3px_rgba(239,68,68,0.1)] shadow-red-200;
 }
 
 textarea {
-  @apply w-full p-4 inset-shadow rounded-2xl focus:outline-none bg-white;
+  @apply w-full p-4 inset-shadow rounded-2xl focus:outline-none bg-white transition-all duration-200;
+}
+
+textarea.input-error {
+  @apply border-2 border-red-400 shadow-[0_0_0_3px_rgba(239,68,68,0.1)] shadow-red-200;
 }
 
 form {
@@ -117,7 +128,25 @@ form {
   .uploader-selected-file {
     @apply flex items-center justify-between p-3 bg-gray-50 rounded-2xl;
   }
+  .uploader-error {
+    @apply border-2 border-red-400 shadow-[0_0_0_3px_rgba(239,68,68,0.1)] shadow-red-200;
+  }
+  .error-message {
+    @apply text-sm text-red-600 mt-1.5 font-medium;
+  }
 }
+
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;     /* Firefox */
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;             /* Chrome, Safari, Opera */
+  }
+}
+
 
 @utility flex-center {
   @apply flex items-center justify-center;

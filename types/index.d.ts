@@ -86,9 +86,12 @@ interface ImprovedResume {
         }[];
     };
     skills: {
-        technical: string[];
-        soft: string[];
-        certifications?: string[];
+        technical?: string[]; // Optional - use when skills need to be split
+        soft?: string[]; // Optional - use when skills need to be split
+        allSkills?: string[]; // Use when skills don't need splitting (generic/core skills)
+        sectionName?: string; // Section name: "Skills", "Core Skills", "Skills and Certifications" (default: "Skills")
+        certifications?: string[]; // Certifications - may be here or in separate section
+        certificationsInSeparateSection?: boolean; // true if certifications should be in additionalSections instead
         isNew: boolean;
         changes: string;
     };
