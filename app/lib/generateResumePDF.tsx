@@ -19,9 +19,12 @@ interface PDFResumeData {
     achievements?: string;
   }[];
   skills: {
-    technical: string[];
-    soft: string[];
+    technical?: string[];
+    soft?: string[];
+    allSkills?: string[];
+    sectionName?: string;
     certifications?: string[];
+    certificationsInSeparateSection?: boolean;
   };
   additionalSections?: {
     [sectionName: string]: {
@@ -102,7 +105,8 @@ const createStyles = (formattingTips?: PDFResumeData["formattingTips"]) => {
       fontSize: headingSize,
       fontWeight: "bold",
       marginBottom: 6,
-      borderBottom: "1pt solid #000000",
+      borderBottomWidth: 1,
+      borderBottomColor: "#000000",
       paddingBottom: 2,
     },
     contactInfo: {
@@ -186,6 +190,13 @@ const createStyles = (formattingTips?: PDFResumeData["formattingTips"]) => {
 export const convertToPDFData = (
   improvedResume: ImprovedResume
 ): PDFResumeData => {
+  // Ensure skills section exists - if missing, create a minimal one
+  const skills = improvedResume.skills || {
+    allSkills: ["Skills section missing - please add relevant skills"],
+    isNew: true,
+    changes: "Skills section was missing and needs to be added",
+  };
+
   return {
     contactInformation: improvedResume.contactInformation.content,
     professionalSummary: improvedResume.professionalSummary.content,
@@ -205,9 +216,12 @@ export const convertToPDFData = (
       achievements: item.achievements,
     })),
     skills: {
-      technical: improvedResume.skills.technical,
-      soft: improvedResume.skills.soft,
-      certifications: improvedResume.skills.certifications,
+      technical: skills.technical || [],
+      soft: skills.soft || [],
+      allSkills: skills.allSkills || [],
+      sectionName: skills.sectionName || "Skills",
+      certifications: skills.certifications,
+      certificationsInSeparateSection: skills.certificationsInSeparateSection || false,
     },
     additionalSections: improvedResume.additionalSections
       ? Object.entries(improvedResume.additionalSections).reduce(
@@ -228,7 +242,14 @@ export const convertToPDFData = (
 // Extract name from contact information (first line usually)
 const extractName = (contactInfo: string): string => {
   const lines = contactInfo.split("\n").filter((line) => line.trim());
-  return lines[0]?.trim() || "Resume";
+  const firstLine = lines[0]?.trim() || "Resume";
+
+  // If it's a single line with '|' separator, extract first segment
+  if (lines.length === 1 && firstLine.includes("|")) {
+    return firstLine.split("|")[0]?.trim() || "Resume";
+  }
+
+  return firstLine;
 };
 
 // Parse description into bullet points
@@ -244,9 +265,26 @@ const parseDescription = (description: string): string[] => {
 const ResumePDFDocument = ({ data }: { data: PDFResumeData }) => {
   const styles = createStyles(data.formattingTips);
   const name = extractName(data.contactInformation);
-  const contactLines = data.contactInformation
-    .split("\n")
-    .filter((line) => line.trim() && !line.includes(name));
+
+  // Handle contact lines: detect single-line vs multi-line format
+  const trimmedContactInfo = data.contactInformation.trim();
+  const isSingleLine = !trimmedContactInfo.includes("\n");
+
+  let contactLines: string[];
+  if (isSingleLine && trimmedContactInfo.includes("|")) {
+    // Single line with '|' separator: split and filter out the name segment
+    const segments = trimmedContactInfo
+      .split("|")
+      .map((seg) => seg.trim())
+      .filter((seg) => seg && seg !== name);
+    contactLines = segments;
+  } else {
+    // Multi-line format: split by newlines and filter out lines containing the name
+    contactLines = trimmedContactInfo
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && !line.includes(name));
+  }
 
   return (
     <Document>
@@ -329,44 +367,71 @@ const ResumePDFDocument = ({ data }: { data: PDFResumeData }) => {
         )}
 
         {/* Skills */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Skills</Text>
-          {data.skills.technical.length > 0 && (
-            <View style={styles.skillsContainer}>
-              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
-                Technical Skills:
-              </Text>
-              <Text style={styles.skillsList}>
-                {data.skills.technical.join(", ")}
-              </Text>
-            </View>
-          )}
-          {data.skills.soft.length > 0 && (
-            <View style={styles.skillsContainer}>
-              <Text
-                style={{ fontWeight: "bold", marginBottom: 4, marginTop: 6 }}
-              >
-                Soft Skills:
-              </Text>
-              <Text style={styles.skillsList}>
-                {data.skills.soft.join(", ")}
-              </Text>
-            </View>
-          )}
-          {data.skills.certifications &&
-            data.skills.certifications.length > 0 && (
+        {data.skills && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              {data.skills.sectionName || "Skills"}
+            </Text>
+            {data.skills.allSkills && data.skills.allSkills.length > 0 ? (
+              // Unified skills display
               <View style={styles.skillsContainer}>
-                <Text
-                  style={{ fontWeight: "bold", marginBottom: 4, marginTop: 6 }}
-                >
-                  Certifications:
-                </Text>
                 <Text style={styles.skillsList}>
-                  {data.skills.certifications.join(", ")}
+                  {data.skills.allSkills.join(", ")}
                 </Text>
               </View>
+            ) : (
+              // Split skills display
+              <>
+                {data.skills.technical && data.skills.technical.length > 0 && (
+                  <View style={styles.skillsContainer}>
+                    <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                      Technical Skills:
+                    </Text>
+                    <Text style={styles.skillsList}>
+                      {data.skills.technical.join(", ")}
+                    </Text>
+                  </View>
+                )}
+                {data.skills.soft && data.skills.soft.length > 0 && (
+                  <View style={styles.skillsContainer}>
+                    <Text
+                      style={{ fontWeight: "bold", marginBottom: 4, marginTop: 6 }}
+                    >
+                      Soft Skills:
+                    </Text>
+                    <Text style={styles.skillsList}>
+                      {data.skills.soft.join(", ")}
+                    </Text>
+                  </View>
+                )}
+                {/* Fallback if no skills at all */}
+                {(!data.skills.technical || data.skills.technical.length === 0) &&
+                  (!data.skills.soft || data.skills.soft.length === 0) && (
+                    <View style={styles.skillsContainer}>
+                      <Text style={styles.skillsList}>
+                        Skills section needs to be populated with relevant skills
+                      </Text>
+                    </View>
+                  )}
+              </>
             )}
-        </View>
+            {/* Show certifications in skills section only if not in separate section */}
+            {data.skills.certifications &&
+              data.skills.certifications.length > 0 &&
+              !data.skills.certificationsInSeparateSection && (
+                <View style={styles.skillsContainer}>
+                  <Text
+                    style={{ fontWeight: "bold", marginBottom: 4, marginTop: 6 }}
+                  >
+                    Certifications:
+                  </Text>
+                  <Text style={styles.skillsList}>
+                    {data.skills.certifications.join(", ")}
+                  </Text>
+                </View>
+              )}
+          </View>
+        )}
 
         {/* Additional Sections */}
         {data.additionalSections &&

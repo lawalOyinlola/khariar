@@ -209,6 +209,7 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
         <div className="flex items-start justify-between gap-4 mb-4 pb-3 border-b border-gray-200">
           <h3 className="text-2xl font-bold text-gray-900">Work Experience</h3>
           <button
+            title="Copy all work experience"
             onClick={() => {
               const allExperience = improvedResume.workExperience.items
                 .map(
@@ -255,6 +256,7 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
                     </span>
                   )}
                   <button
+                    title="Copy this work experience"
                     onClick={() => {
                       const content = `${item.position} at ${item.company}\n${item.duration}${item.location ? ` | ${item.location}` : ""
                         }\n${item.description}`;
@@ -282,6 +284,7 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
         <div className="flex items-start justify-between gap-4 mb-4 pb-3 border-b border-gray-200">
           <h3 className="text-2xl font-bold text-gray-900">Education</h3>
           <button
+            title="Copy all education"
             onClick={() => {
               const allEducation = improvedResume.education.items
                 .map(
@@ -332,6 +335,7 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
                     </span>
                   )}
                   <button
+                    title="Copy this education"
                     onClick={() => {
                       const content = `${item.degree}${item.fieldOfStudy ? ` in ${item.fieldOfStudy}` : ""}\n${item.institution}\n${item.duration}${item.location ? ` | ${item.location}` : ""
                         }${item.achievements ? `\n${item.achievements}` : ""}`;
@@ -350,66 +354,109 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
       </section>
 
       {/* Skills */}
-      <section className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <SectionHeader
-          title="Skills"
-          sectionId="skills"
-          content={`Technical Skills: ${improvedResume.skills.technical.join(", ")}\n\nSoft Skills: ${improvedResume.skills.soft.join(", ")}${improvedResume.skills.certifications
-            ? `\n\nCertifications: ${improvedResume.skills.certifications.join(", ")}`
-            : ""
-            }`}
-          isNew={improvedResume.skills.isNew}
-          changes={improvedResume.skills.changes}
-        />
-        <div className="space-y-4">
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-2">
-              Technical Skills:
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {improvedResume.skills.technical.map((skill, idx) => (
-                <span
-                  key={idx}
-                  className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-2">Soft Skills:</h4>
-            <div className="flex flex-wrap gap-2">
-              {improvedResume.skills.soft.map((skill, idx) => (
-                <span
-                  key={idx}
-                  className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
-          </div>
-          {improvedResume.skills.certifications &&
-            improvedResume.skills.certifications.length > 0 && (
+      {improvedResume.skills && (
+        <section className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+          <SectionHeader
+            title={improvedResume.skills.sectionName || "Skills"}
+            sectionId="skills"
+            content={
+              improvedResume.skills.allSkills
+                ? // Unified skills (no splitting)
+                `Skills: ${improvedResume.skills.allSkills.join(", ")}${improvedResume.skills.certifications &&
+                  !improvedResume.skills.certificationsInSeparateSection
+                  ? `\n\nCertifications: ${improvedResume.skills.certifications.join(", ")}`
+                  : ""
+                }`
+                : // Split skills (technical/soft)
+                `Technical Skills: ${(improvedResume.skills.technical || []).join(", ")}\n\nSoft Skills: ${(improvedResume.skills.soft || []).join(", ")}${improvedResume.skills.certifications &&
+                  !improvedResume.skills.certificationsInSeparateSection
+                  ? `\n\nCertifications: ${improvedResume.skills.certifications.join(", ")}`
+                  : ""
+                }`
+            }
+            isNew={improvedResume.skills.isNew || false}
+            changes={improvedResume.skills.changes || ""}
+          />
+          <div className="space-y-4">
+            {improvedResume.skills.allSkills ? (
+              // Unified skills display
               <div>
-                <h4 className="font-semibold text-gray-800 mb-2">
-                  Certifications:
-                </h4>
+                <h4 className="font-semibold text-gray-800 mb-2">Skills:</h4>
                 <div className="flex flex-wrap gap-2">
-                  {improvedResume.skills.certifications.map((cert, idx) => (
+                  {improvedResume.skills.allSkills.map((skill, idx) => (
                     <span
                       key={idx}
-                      className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full"
+                      className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
                     >
-                      {cert}
+                      {skill}
                     </span>
                   ))}
                 </div>
               </div>
+            ) : (
+              // Split skills display
+              <>
+                {improvedResume.skills.technical &&
+                  improvedResume.skills.technical.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-800 mb-2">
+                        Technical Skills:
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {improvedResume.skills.technical.map((skill, idx) => (
+                          <span
+                            key={idx}
+                            className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                {improvedResume.skills.soft &&
+                  improvedResume.skills.soft.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-800 mb-2">
+                        Soft Skills:
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {improvedResume.skills.soft.map((skill, idx) => (
+                          <span
+                            key={idx}
+                            className="px-3 py-1 bg-purple-100 text-purple-800 text-sm rounded-full"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+              </>
             )}
-        </div>
-      </section>
+            {/* Show certifications in skills section only if not in separate section */}
+            {improvedResume.skills.certifications &&
+              improvedResume.skills.certifications.length > 0 &&
+              !improvedResume.skills.certificationsInSeparateSection && (
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-2">
+                    Certifications:
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {improvedResume.skills.certifications.map((cert, idx) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full"
+                      >
+                        {cert}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+          </div>
+        </section>
+      )}
 
       {/* Additional Sections */}
       {improvedResume.additionalSections &&

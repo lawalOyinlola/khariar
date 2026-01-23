@@ -128,7 +128,7 @@ Resumind is a comprehensive resume analysis tool that leverages AI to help job s
    ```
 
 5. **Open your browser**
-   ```
+   ```text
    http://localhost:5173
    ```
 
@@ -175,7 +175,7 @@ Resumind is a comprehensive resume analysis tool that leverages AI to help job s
 
 ## 📁 Project Structure
 
-```
+```text
 ai-resume-analyzer/
 ├── app/
 │   ├── components/          # React components

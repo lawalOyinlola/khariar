@@ -39,7 +39,9 @@ export default function Home() {
       } catch (error) {
         console.error("Failed to load resumes:", error);
         const errorMessage = extractErrorMessage(error, "Failed to load resumes");
-        showError("Failed to load resumes", errorMessage);
+        // Only show description if it differs from the default
+        const description = errorMessage !== "Failed to load resumes" ? errorMessage : undefined;
+        showError("Failed to load resumes", description);
         setResumes([]);
       } finally {
         setLoadingResumes(false);

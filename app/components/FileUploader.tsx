@@ -6,12 +6,14 @@ interface FileUploaderProps {
   onFileSelect?: (file: File | null) => void;
   file?: File | null;
   onError?: (error: string | null) => void;
+  error?: string;
 }
 
 const FileUploader = ({
   onFileSelect,
   file: controlledFile,
   onError,
+  error: externalError,
 }: FileUploaderProps) => {
   const [error, setError] = useState<string | null>(null);
   const maxFileSize = 20 * 1024 * 1024; // 20MB in bytes
@@ -73,9 +75,11 @@ const FileUploader = ({
     }
   }, [controlledFile, onError]);
 
+  const displayError = externalError || error;
+
   return (
     <div className="w-full">
-      <div className="gradient-border">
+      <div className={`gradient-border ${displayError ? "uploader-error" : ""}`}>
         <div {...getRootProps()}>
           <input {...getInputProps()} />
 
@@ -127,10 +131,8 @@ const FileUploader = ({
           </div>
         </div>
       </div>
-      {error && (
-        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
+      {displayError && (
+        <span className="error-message">{displayError}</span>
       )}
     </div>
   );

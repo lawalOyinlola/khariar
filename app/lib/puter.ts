@@ -78,8 +78,12 @@ interface PuterStore {
     ) => Promise<AIResponse | undefined>;
     feedback: (
       path: string,
-      message: string
+      message: string,
+      pageCount?: number
     ) => Promise<AIResponse | undefined>;
+    validatePdf: (
+      path: string
+    ) => Promise<{ isValid: boolean; fileType?: string; description?: string } | undefined>;
     improveResume: (
       path: string,
       message: string
@@ -357,7 +361,7 @@ export const usePuterStore = create<PuterStore>((set, get) => {
     >;
   };
 
-  const feedback = async (path: string, message: string) => {
+  const feedback = async (path: string, message: string, pageCount?: number) => {
     const puter = getPuter();
     if (!puter) {
       setError("Puter.js not available");
@@ -379,11 +383,13 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         return undefined;
       }
 
-      const { text: resumeText, pageCount } = extractionResult;
-      console.log(`Extracted resume text from ${pageCount} page(s), length: ${resumeText.length} characters`);
+      const { text: resumeText, pageCount: extractedPageCount } = extractionResult;
+      // Use provided pageCount if available, otherwise use extracted pageCount
+      const finalPageCount = pageCount !== undefined ? pageCount : extractedPageCount;
+      console.log(`Extracted resume text from ${finalPageCount} page(s), length: ${resumeText.length} characters`);
 
       // Create comprehensive prompt with extracted PDF text
-      const enhancedMessage = `${message}\n\n--- RESUME CONTENT (Extracted from PDF, ${pageCount} page(s)) ---\n${resumeText}\n\n--- END OF RESUME CONTENT ---\n\nPlease analyze the resume content above and provide detailed feedback.`;
+      const enhancedMessage = `${message}\n\n--- RESUME CONTENT (Extracted from PDF, ${finalPageCount} page(s)) ---\n${resumeText}\n\n--- END OF RESUME CONTENT ---\n\nPlease analyze the resume content above and provide detailed feedback. Pay special attention to the resume's page count (${finalPageCount} page(s)) and evaluate whether this length is appropriate for the candidate's experience level and the target job.`;
 
       // Use text-based chat instead of vision model since we have the text
       const response = await puter.ai.chat(
@@ -411,6 +417,142 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       const errorMessage = extractErrorMessage(error, "Unknown error");
       setError(`Failed to get AI feedback: ${errorMessage}`);
       return undefined;
+    }
+  };
+
+  const validatePdf = async (path: string) => {
+    const puter = getPuter();
+    if (!puter) {
+      setError("Puter.js not available");
+      return undefined;
+    }
+
+    try {
+      console.log("Validating PDF file type:", path);
+      
+      // Extract text from PDF file
+      const extractionResult = await extractPdfTextFromPath(readFile, path);
+      
+      const validation = validatePdfExtraction(extractionResult);
+      if (!validation.valid) {
+        // If we can't extract text, it might be a scanned/image PDF
+        // We'll still try to analyze it
+        console.warn("PDF text extraction had issues:", validation.error);
+      }
+
+      const { text: pdfText, pageCount } = extractionResult;
+      console.log(`Extracted text from ${pageCount} page(s) for validation, length: ${pdfText.length} characters`);
+
+      // Create validation prompt
+      const validationPrompt = `Analyze the following PDF content and determine:
+1. Is this document a resume/CV? (Answer: yes or no)
+2. If not a resume, what type of document is it? (e.g., "invoice", "contract", "letter", "report", "academic paper", "form", etc.)
+3. Provide a brief description (maximum 200 characters) of what the document contains.
+
+PDF Content (${pageCount} page(s)):
+${pdfText.substring(0, 5000)}${pdfText.length > 5000 ? '...' : ''}
+
+Respond in JSON format:
+{
+  "isResume": boolean,
+  "fileType": "string (if not resume)",
+  "description": "string (maximum 200 characters, brief description of document content)"
+}`;
+
+      // Use Gemini 2.0 Flash-Lite for cost-effective validation
+      const response = await puter.ai.chat(
+        [
+          {
+            role: "user",
+            content: validationPrompt,
+          },
+        ],
+        { model: "google/gemini-2.0-flash-lite" }
+      ) as any;
+
+      console.log("PDF validation response:", response);
+
+      // Try to extract JSON from response
+      let validationResult: { isResume: boolean; fileType?: string; description?: string };
+      
+      // Extract text from AIResponse if needed
+      let responseText: string | null = null;
+      if (response && typeof response === 'object' && 'message' in response) {
+        // It's an AIResponse object
+        const { extractTextFromAIResponse } = await import("./ai-response-parser");
+        responseText = extractTextFromAIResponse(response as any);
+      } else if (typeof response === 'string') {
+        responseText = response;
+      } else if (response && typeof response === 'object') {
+        // Response is already a parsed object
+        validationResult = response as { isResume: boolean; fileType?: string; description?: string };
+        return {
+          isValid: validationResult.isResume === true,
+          fileType: validationResult.fileType || "unknown",
+          description: validationResult.description || "Unable to determine document type.",
+        };
+      } else {
+        // Default: assume it's a resume if we can't determine
+        return {
+          isValid: true,
+          fileType: "unknown",
+          description: "Validation response was unclear, proceeding with analysis.",
+        };
+      }
+
+      if (responseText) {
+        // Try to parse JSON from text response
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            validationResult = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            // Fallback: try to extract information from text
+            const isResume = /resume|cv|curriculum vitae/i.test(responseText);
+            validationResult = {
+              isResume,
+              fileType: isResume ? undefined : "unknown document",
+              description: responseText.substring(0, 200),
+            };
+          }
+        } else {
+          // Fallback: try to extract information from text
+          const isResume = /resume|cv|curriculum vitae/i.test(responseText);
+          const rawDescription = responseText.substring(0, 200);
+          validationResult = {
+            isResume,
+            fileType: isResume ? undefined : "unknown document",
+            description: rawDescription.length > 200 ? rawDescription.substring(0, 197) + "..." : rawDescription,
+          };
+        }
+      } else {
+        // Default: assume it's a resume if we can't determine
+        validationResult = {
+          isResume: true,
+        };
+      }
+
+      // Truncate description to 200 characters
+      const description = validationResult.description || "Unable to determine document type.";
+      const truncatedDescription = description.length > 200 
+        ? description.substring(0, 197) + "..." 
+        : description;
+
+      return {
+        isValid: validationResult.isResume === true,
+        fileType: validationResult.fileType || "unknown",
+        description: truncatedDescription,
+      };
+    } catch (error) {
+      console.error("Error validating PDF:", error);
+      const errorMessage = extractErrorMessage(error, "Unknown error");
+      setError(`Failed to validate PDF: ${errorMessage}`);
+      // Default to valid if validation fails (don't block user)
+      return {
+        isValid: true,
+        fileType: "unknown",
+        description: "Validation failed, but proceeding with analysis.",
+      };
     }
   };
 
@@ -563,7 +705,8 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         testMode?: boolean,
         options?: PuterChatOptions
       ) => chat(prompt, imageURL, testMode, options),
-      feedback: (path: string, message: string) => feedback(path, message),
+      feedback: (path: string, message: string, pageCount?: number) => feedback(path, message, pageCount),
+      validatePdf: (path: string) => validatePdf(path),
       improveResume: (path: string, message: string) => improveResume(path, message),
       img2txt: (image: string | File | Blob, testMode?: boolean) =>
         img2txt(image, testMode),

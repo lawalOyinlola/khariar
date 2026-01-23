@@ -42,7 +42,8 @@ export async function convertPdfToImage(
     try {
       lib = await loadPdfJs();
     } catch (loadError) {
-      const errorMessage = loadError instanceof Error ? loadError.message : String(loadError);
+      const rawMessage = loadError instanceof Error ? loadError.message : String(loadError);
+      const errorMessage = rawMessage.replace(/^Failed to load PDF\.js library:\s*/i, "");
       console.error("Failed to load PDF.js library:", loadError);
       return {
         imageUrl: "",
