@@ -20,7 +20,7 @@ const ScoreGauge: React.FC<ScoreGaugeProps> = ({ score = 75 }) => {
   return (
     <div className="flex flex-col items-center">
       <div className="relative w-40 h-20">
-        <svg viewBox="0 0 100 50" className="w-full h-full">
+        <svg viewBox="0 0 100 50" className="w-full h-full" aria-hidden="true">
           <defs>
             <linearGradient
               id="gaugeGradient"
