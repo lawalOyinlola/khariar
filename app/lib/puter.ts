@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { extractErrorMessage } from "./error-handler";
 import { extractPdfTextFromPath, validatePdfExtraction } from "./pdf-utils";
-import { validateAIResponse } from "./ai-response-parser";
+import { validateAIResponse, extractTextFromAIResponse } from "./ai-response-parser";
 import { showErrorFromException, showLoading, dismissToast } from "./toast";
 
 declare global {
@@ -479,7 +479,6 @@ Respond in JSON format:
       let responseText: string | null = null;
       if (response && typeof response === 'object' && 'message' in response) {
         // It's an AIResponse object
-        const { extractTextFromAIResponse } = await import("./ai-response-parser");
         responseText = extractTextFromAIResponse(response as any);
       } else if (typeof response === 'string') {
         responseText = response;
@@ -493,6 +492,7 @@ Respond in JSON format:
         };
       } else {
         // Default: assume it's a resume if we can't determine
+         console.warn("PDF validation response had unexpected format, defaulting to valid:", response);
         return {
           isValid: true,
           fileType: "unknown",
