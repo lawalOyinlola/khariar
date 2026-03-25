@@ -8,7 +8,7 @@ import { extractErrorMessage } from "~/lib/error-handler";
 
 export function meta() {
   return [
-    { title: "Resumind" },
+    { title: "KHARIAR" },
     { name: "description", content: "Smart feedback for your dream job!" },
   ];
 }

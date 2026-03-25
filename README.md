@@ -1,8 +1,8 @@
-# Resumind - AI-Powered Resume Analyzer
+# KHARIAR - AI-Powered Resume Analyzer
 
 <div align="center">
 
-![Resumind](https://img.shields.io/badge/Resumind-AI%20Resume%20Analyzer-blue?style=for-the-badge)
+![KHARIAR](https://img.shields.io/badge/KHARIAR-AI%20Resume%20Analyzer-blue?style=for-the-badge)
 
 **Smart feedback for your dream job!**
 
@@ -28,7 +28,7 @@ An intelligent resume analysis platform that provides comprehensive feedback, AT
 
 ## 🎯 Overview
 
-Resumind is a comprehensive resume analysis tool that leverages AI to help job seekers optimize their resumes for Applicant Tracking Systems (ATS) and specific job applications. The platform provides detailed feedback across multiple dimensions including ATS compatibility, content quality, structure, skills alignment, and tone.
+KHARIAR is a comprehensive resume analysis tool that leverages AI to help job seekers optimize their resumes for Applicant Tracking Systems (ATS) and specific job applications. The platform provides detailed feedback across multiple dimensions including ATS compatibility, content quality, structure, skills alignment, and tone.
 
 ### Key Capabilities
 
@@ -74,6 +74,7 @@ Resumind is a comprehensive resume analysis tool that leverages AI to help job s
 ## 🛠 Tech Stack
 
 ### Frontend
+
 - **React 19** - UI library
 - **React Router 7** - Routing and navigation
 - **TypeScript** - Type safety
@@ -81,14 +82,17 @@ Resumind is a comprehensive resume analysis tool that leverages AI to help job s
 - **Zustand** - State management
 
 ### PDF Processing
+
 - **PDF.js** - PDF text extraction and rendering
 - **Multi-page Support** - Analyzes all pages of your resume
 
 ### Backend & Storage
+
 - **Puter.js** - Cloud storage and authentication
 - **AI Integration** - GPT-powered analysis and improvement
 
 ### Development Tools
+
 - **Vite** - Build tool and dev server
 - **React Router Dev** - Development utilities
 
@@ -102,12 +106,14 @@ Resumind is a comprehensive resume analysis tool that leverages AI to help job s
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
-   cd ai-resume-analyzer
+   cd khariar
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    # or
@@ -115,12 +121,14 @@ Resumind is a comprehensive resume analysis tool that leverages AI to help job s
    ```
 
 3. **Set up environment variables**
+
    ```bash
    # Create .env file if needed
    # Configure Puter.js credentials
    ```
 
 4. **Start development server**
+
    ```bash
    npm run dev
    # or
@@ -176,7 +184,7 @@ Resumind is a comprehensive resume analysis tool that leverages AI to help job s
 ## 📁 Project Structure
 
 ```text
-ai-resume-analyzer/
+khariar/
 ├── app/
 │   ├── components/          # React components
 │   │   ├── ResumeImprovement.tsx
@@ -245,14 +253,14 @@ This project is private and proprietary.
 
 ## 👨‍💻 Developer
 
-**Built by [YERO](https://github.com/yero)**
+**Built by [YERO / LAWAL](https://github.com/lawalOyinlola)**
 
 ---
 
 <div align="center">
 
-Made with ❤️ by YERO
+Made with ❤️ by YERO / LAWAL
 
-[Report Bug](https://github.com/yero/ai-resume-analyzer/issues) • [Request Feature](https://github.com/yero/ai-resume-analyzer/issues)
+[Report Bug](https://github.com/lawalOyinlola/khariar/issues) • [Request Feature](https://github.com/lawalOyinlola/khariar/issues)
 
 </div>

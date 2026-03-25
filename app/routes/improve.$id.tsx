@@ -9,12 +9,12 @@ import { extractErrorMessage } from "~/lib/error-handler";
 import { generateImprovedResume } from "~/lib/resume-generator";
 
 export const meta = () => [
-  { title: "Resumind | Improved Resume" },
+  { title: "KHARIAR | Improved Resume" },
   { name: "description", content: "Your improved, ATS-optimized resume" },
 ];
 
 const Improve = () => {
-  const { auth, isLoading, fs, kv, ai } = usePuterStore();
+  const { auth, isLoading, fs, kv, ai, puterReady } = usePuterStore();
   const { id } = useParams();
   const [improvedResume, setImprovedResume] = useState<ImprovedResume | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -52,7 +52,11 @@ const Improve = () => {
   }, [auth.isAuthenticated, isLoading, navigate, id]);
 
   useEffect(() => {
-    if (!id || !kv || !fs || !ai) {
+    if (!auth.isAuthenticated && !isLoading) {
+      return;
+    }
+    // Wait for Puter.js to be ready before attempting to load data
+    if (!puterReady || !id || !kv || !fs || !ai) {
       return;
     }
 
@@ -69,35 +73,20 @@ const Improve = () => {
         const data = JSON.parse(resumeDataStr);
         setResumeData(data);
 
-        // Check if improved resume already exists
+        // Check if improved resume already exists (works for both regular and sample resumes)
         const improvedResumeStr = await kv.get(`improved-resume:${id}`);
         if (improvedResumeStr) {
           try {
             const improved = JSON.parse(improvedResumeStr);
             setImprovedResume(improved);
-            updateToSuccess(loadingToast, "Resume loaded", "Displaying improved resume...");
+            const message = data.isSampleResume
+              ? "Displaying sample resume..."
+              : "Displaying improved resume...";
+            updateToSuccess(loadingToast, "Resume loaded", message);
             return;
           } catch (e) {
             console.error("Failed to parse existing improved resume:", e);
             // Continue to generate new one
-          }
-        }
-
-        // Handle sample resumes - they already have improved resume saved
-        const isSampleResume = data.isSampleResume === true;
-
-        if (isSampleResume) {
-          // Sample resumes already have improved resume - just load it
-          const improvedResumeStr = await kv.get(`improved-resume:${id}`);
-          if (improvedResumeStr) {
-            try {
-              const improved = JSON.parse(improvedResumeStr);
-              setImprovedResume(improved);
-              updateToSuccess(loadingToast, "Resume loaded", "Displaying sample resume...");
-              return;
-            } catch (e) {
-              console.error("Failed to parse sample improved resume:", e);
-            }
           }
         }
 
@@ -163,7 +152,7 @@ const Improve = () => {
     };
 
     loadAndImprove();
-  }, [id, kv, fs, ai]);
+  }, [id, kv, fs, ai, auth.isAuthenticated, isLoading, puterReady]);
 
   return (
     <main className="pt-0!">
@@ -180,6 +169,7 @@ const Improve = () => {
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
@@ -199,6 +189,7 @@ const Improve = () => {
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
@@ -224,6 +215,7 @@ const Improve = () => {
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <circle
                     className="opacity-25"
@@ -248,6 +240,7 @@ const Improve = () => {
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -264,7 +257,7 @@ const Improve = () => {
       </nav>
       <div className="flex flex-row w-full max-lg:flex-col-reverse">
         {/* Left Column - Formatting Tips (Sticky on desktop, appears after content on mobile) */}
-        <section className="feedback-section no-scrollbar bg-[url('/images/bg-small.svg')] bg-cover h-screen sticky top-0 overflow-y-auto py-16 max-lg:h-auto max-lg:sticky-0 max-lg:py-0 max-lg:overflow-visible">
+        <section className="feedback-section no-scrollbar bg-[url('/images/bg-small.svg')] bg-cover h-screen sticky top-0 overflow-y-auto py-16 max-lg:h-auto max-lg:static max-lg:py-0 max-lg:overflow-visible">
           <div className="max-lg:py-10">
             <h2 className="text-3xl text-black! font-bold mb-6 max-lg:mb-4">Formatting Tips</h2>
             {error ? (

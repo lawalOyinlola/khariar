@@ -193,8 +193,6 @@ export const convertToPDFData = (
   // Ensure skills section exists - if missing, create a minimal one
   const skills = improvedResume.skills || {
     allSkills: ["Skills section missing - please add relevant skills"],
-    isNew: true,
-    changes: "Skills section was missing and needs to be added",
   };
 
   return {
@@ -279,11 +277,21 @@ const ResumePDFDocument = ({ data }: { data: PDFResumeData }) => {
       .filter((seg) => seg && seg !== name);
     contactLines = segments;
   } else {
-    // Multi-line format: split by newlines and filter out lines containing the name
-    contactLines = trimmedContactInfo
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line && !line.includes(name));
+    // Multi-line format: split by newlines and filter out lines that exactly match the name
+    // Only exclude the first line if it exactly matches the name (common format)
+    const lines = trimmedContactInfo.split("\n").map((line) => line.trim());
+    const firstLine = lines[0];
+
+    // Exclude first line only if it exactly matches the name (case-insensitive)
+    // This prevents accidentally removing legitimate contact info that contains the name
+    if (firstLine && firstLine.toLowerCase() === name.toLowerCase()) {
+      contactLines = lines.slice(1).filter((line) => line.length > 0);
+    } else {
+      // Filter out any lines that exactly match the name (case-insensitive)
+      contactLines = lines.filter(
+        (line) => line.length > 0 && line.toLowerCase() !== name.toLowerCase()
+      );
+    }
   }
 
   return (

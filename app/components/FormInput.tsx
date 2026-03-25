@@ -1,4 +1,5 @@
 import { type ChangeEvent, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { cn } from "~/lib/utils";
 
 interface BaseFormInputProps {
   label: string;
@@ -35,6 +36,7 @@ const FormInput = (props: FormInputProps) => {
     defaultValue,
     onChange,
     required,
+    className,
     ...rest
   } = props;
   const isTextarea = props.as === "textarea";
@@ -43,16 +45,21 @@ const FormInput = (props: FormInputProps) => {
     onChange?.(e.target.value);
   };
 
+  const mergedClassName = cn(className, error ? "input-error" : "");
+  const errorId = error ? `${id}-error` : undefined;
+
   const commonProps = {
     name,
     id,
     placeholder,
-    className: error ? "input-error" : "",
+    className: mergedClassName,
     onChange: handleChange,
     value,
     defaultValue,
     required,
     disabled: rest.disabled,
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": errorId,
   };
 
   return (
@@ -73,7 +80,11 @@ const FormInput = (props: FormInputProps) => {
           {...(rest as InputHTMLAttributes<HTMLInputElement>)}
         />
       )}
-      {error && <span className="error-message">{error}</span>}
+      {error && (
+        <span id={errorId} className="error-message" role="alert">
+          {error}
+        </span>
+      )}
     </div>
   );
 };

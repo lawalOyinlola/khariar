@@ -4,6 +4,31 @@ interface ResumeImprovementProps {
   improvedResume: ImprovedResume;
 }
 
+/**
+ * Generates the content string for the skills section header
+ */
+const getSkillsContent = (skills: ImprovedResume["skills"]): string => {
+  if (!skills) return "";
+
+  const hasCertificationsInSkills =
+    skills.certifications &&
+    skills.certifications.length > 0 &&
+    !skills.certificationsInSeparateSection;
+  const certificationsText = hasCertificationsInSkills
+    ? `\n\nCertifications: ${skills.certifications!.join(", ")}`
+    : "";
+
+  if (Array.isArray(skills.allSkills) && skills.allSkills.length > 0) {
+    // Unified skills (no splitting)
+    return `Skills: ${skills.allSkills.join(", ")}${certificationsText}`;
+  }
+
+  // Split skills (technical/soft)
+  const technicalSkills = (skills.technical || []).join(", ");
+  const softSkills = (skills.soft || []).join(", ");
+  return `Technical Skills: ${technicalSkills}\n\nSoft Skills: ${softSkills}${certificationsText}`;
+};
+
 const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -80,6 +105,7 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -97,6 +123,7 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -359,26 +386,12 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
           <SectionHeader
             title={improvedResume.skills.sectionName || "Skills"}
             sectionId="skills"
-            content={
-              improvedResume.skills.allSkills
-                ? // Unified skills (no splitting)
-                `Skills: ${improvedResume.skills.allSkills.join(", ")}${improvedResume.skills.certifications &&
-                  !improvedResume.skills.certificationsInSeparateSection
-                  ? `\n\nCertifications: ${improvedResume.skills.certifications.join(", ")}`
-                  : ""
-                }`
-                : // Split skills (technical/soft)
-                `Technical Skills: ${(improvedResume.skills.technical || []).join(", ")}\n\nSoft Skills: ${(improvedResume.skills.soft || []).join(", ")}${improvedResume.skills.certifications &&
-                  !improvedResume.skills.certificationsInSeparateSection
-                  ? `\n\nCertifications: ${improvedResume.skills.certifications.join(", ")}`
-                  : ""
-                }`
-            }
+            content={getSkillsContent(improvedResume.skills)}
             isNew={improvedResume.skills.isNew || false}
             changes={improvedResume.skills.changes || ""}
           />
           <div className="space-y-4">
-            {improvedResume.skills.allSkills ? (
+            {Array.isArray(improvedResume.skills.allSkills) && improvedResume.skills.allSkills.length > 0 ? (
               // Unified skills display
               <div>
                 <h4 className="font-semibold text-gray-800 mb-2">Skills:</h4>

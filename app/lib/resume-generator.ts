@@ -44,13 +44,20 @@ export async function generateImprovedResume(
   } = options;
 
   try {
+    // Validate required parameters for non-sample mode
+    if (!isSample && !feedback) {
+      return {
+        success: false,
+        error: "Feedback is required for resume improvement (non-sample mode).",
+      };
+    }
     // Prepare instructions based on type
     const instructions = isSample
       ? prepareSampleResumeInstructions({ jobTitle, jobDescription, companyName })
       : prepareImprovementInstructions({
           jobTitle,
           jobDescription,
-          feedback: feedback!,
+          feedback: feedback as Feedback,
           pageCount,
         });
 
@@ -93,34 +100,42 @@ export async function generateImprovedResume(
     }
 
     // Parse the response
-    let parsedResume: ImprovedResume | null = parseAIResponseAsJSON(response as any);
+    let parsedResume: ImprovedResume | null = parseAIResponseAsJSON<ImprovedResume>(response);
 
     if (!parsedResume) {
       // Fallback: try extracting text manually
-      const resumeText = extractTextFromAIResponse(response as any);
+      const resumeText = extractTextFromAIResponse(response);
       if (resumeText) {
+        let cleaned: string | null = null;
         try {
-          const cleaned = cleanMarkdownCodeBlocks(resumeText);
+          cleaned = cleanMarkdownCodeBlocks(resumeText);
           parsedResume = JSON.parse(cleaned) as ImprovedResume;
-        } catch (parseError: any) {
+        } catch (parseError: unknown) {
           console.error("Failed to parse improved resume:", parseError);
           
+          // Extract error message safely
+          const errorMessage = parseError instanceof Error 
+            ? parseError.message 
+            : typeof parseError === "object" && parseError !== null && "message" in parseError
+            ? String((parseError as { message: unknown }).message)
+            : String(parseError);
+          
           // Log a portion of the problematic JSON for debugging
-          const errorPosition = parseError.message?.match(/position (\d+)/)?.[1];
-          if (errorPosition) {
+          const errorPosition = errorMessage.match(/position (\d+)/)?.[1];
+          if (errorPosition && cleaned) {
             const pos = parseInt(errorPosition);
             const start = Math.max(0, pos - 200);
-            const end = Math.min(resumeText.length, pos + 200);
+            const end = Math.min(cleaned.length, pos + 200);
             console.error("Problematic JSON section:", {
               position: pos,
               context: cleaned.substring(start, end),
-              error: parseError.message,
+              error: errorMessage || "Unknown error",
             });
           }
           
           return {
             success: false,
-            error: `Failed to parse improved resume: ${parseError.message || "Invalid JSON format"}. The AI response may contain syntax errors. Please try again.`,
+            error: `Failed to parse improved resume: ${errorMessage || "Invalid JSON format"}. The AI response may contain syntax errors. Please try again.`,
           };
         }
       } else {
