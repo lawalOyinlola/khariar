@@ -3,8 +3,9 @@
 @import "tw-animate-css";
 
 @theme {
-  --font-sans: "Mona Sans", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans:
+    "Mona Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --color-dark-200: #475467;
   --color-light-blue-100: #c1d3f81a;
   --color-light-blue-200: #a7bff14d;
@@ -27,7 +28,7 @@ main {
 }
 
 body:has(.modal) {
- @apply overflow-hidden!;
+  @apply overflow-hidden!;
 }
 
 h1 {
@@ -45,7 +46,7 @@ input {
 }
 
 input.input-error {
-  @apply border-2 border-red-400 shadow-[0_0_0_3px] shadow-red-200/10;
+  @apply` border-2 border-red-400 shadow-[0_0_0_3px] shadow-red-200/10;
 }
 
 textarea {
@@ -129,7 +130,7 @@ form {
     @apply flex items-center justify-between p-3 bg-gray-50 rounded-2xl;
   }
   .uploader-error {
-    @apply border-2 border-red-400 shadow-[0_0_0_3px_rgba(239,68,68,0.1)] shadow-red-200;
+    @apply border-2 border-red-400 shadow-[0_0_0_3px] shadow-red-200/10;
   }
   .error-message {
     @apply text-sm text-red-600 mt-1.5 font-medium;
@@ -138,15 +139,14 @@ form {
 
 @layer utilities {
   .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;     /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
   }
 
   .no-scrollbar::-webkit-scrollbar {
-    display: none;             /* Chrome, Safari, Opera */
+    display: none; /* Chrome, Safari, Opera */
   }
 }
-
 
 @utility flex-center {
   @apply flex items-center justify-center;

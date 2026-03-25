@@ -46,7 +46,7 @@ export function extractTextFromAIResponse(response: AIResponse): string | null {
   if (Array.isArray(content)) {
     // Find text item in array
     const textItem = content.find(
-      (item: any) => item.type === "text" && item.text
+      (item: any) => item.type === "text" && item.text,
     );
     if (textItem?.text) {
       return textItem.text;
@@ -69,7 +69,7 @@ export function cleanMarkdownCodeBlocks(text: string): string {
   // Remove JSON code blocks
   if (cleaned.startsWith("```json")) {
     cleaned = cleaned.replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
-  } 
+  }
   // Remove generic code blocks
   else if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
@@ -79,7 +79,7 @@ export function cleanMarkdownCodeBlocks(text: string): string {
   // Try to find the first { and last } to extract just the JSON object
   const firstBrace = cleaned.indexOf("{");
   const lastBrace = cleaned.lastIndexOf("}");
-  
+
   if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
     cleaned = cleaned.substring(firstBrace, lastBrace + 1);
   }
@@ -95,20 +95,18 @@ function fixCommonJSONIssues(jsonString: string): string {
 
   // Fix trailing commas in arrays
   fixed = fixed.replace(/,(\s*[}\]])/g, "$1");
-  
+
   // Fix trailing commas in objects
   fixed = fixed.replace(/,(\s*})/g, "$1");
-  
+
   // Fix unescaped quotes in strings (basic attempt)
   // This is tricky, so we'll be conservative
-  // Remove block comments
-  fixed = fixed.replace(/\/\*[\s\S]*?\*\//g, "");
-  
-  // Safely remove inline comments (//) avoiding those inside strings (like URLs)
-  fixed = fixed.replace(/("(?:[^"\\]|\\.)*")|(?:\/\/(?:(?!\n).)*)/g, (match, stringValue) => {
-    return stringValue || ""; 
-  });
-  
+  // Remove JS-style comments while preserving quoted strings
+  fixed = fixed.replace(
+    /("(?:[^"\\]|\\.)*")|\/\*[\s\S]*?\*\/|\/\/[^\n\r]*/g,
+    (_match, quotedString) => quotedString || "",
+  );
+
   return fixed;
 }
 
@@ -124,27 +122,30 @@ export function parseAIResponseAsJSON<T = any>(response: AIResponse): T | null {
     }
 
     let cleaned = cleanMarkdownCodeBlocks(text);
-    
+
     // Strategy 1: Try parsing directly
     try {
       return JSON.parse(cleaned) as T;
     } catch (firstError) {
       console.warn("Direct JSON parse failed, attempting fixes...", firstError);
-      
+
       // Strategy 2: Try fixing common JSON issues
       try {
         const fixed = fixCommonJSONIssues(cleaned);
         return JSON.parse(fixed) as T;
       } catch (secondError) {
-        console.warn("Fixed JSON parse failed, trying to extract JSON object...", secondError);
-        
+        console.warn(
+          "Fixed JSON parse failed, trying to extract JSON object...",
+          secondError,
+        );
+
         // Strategy 3: Try to extract just the JSON object more aggressively
         // Look for the largest valid JSON object
         const jsonStart = cleaned.indexOf("{");
         if (jsonStart !== -1) {
           let braceCount = 0;
           let jsonEnd = -1;
-          
+
           for (let i = jsonStart; i < cleaned.length; i++) {
             if (cleaned[i] === "{") braceCount++;
             if (cleaned[i] === "}") braceCount--;
@@ -153,7 +154,7 @@ export function parseAIResponseAsJSON<T = any>(response: AIResponse): T | null {
               break;
             }
           }
-          
+
           if (jsonEnd !== -1) {
             const extracted = cleaned.substring(jsonStart, jsonEnd + 1);
             try {
@@ -166,16 +167,19 @@ export function parseAIResponseAsJSON<T = any>(response: AIResponse): T | null {
               } catch (fourthError: unknown) {
                 // Extract error position for better debugging
                 const fourthErrorMessage = getErrorMessage(fourthError);
-                const errorPosMatch = fourthErrorMessage.match(/position (\d+)/);
-                const errorPos = errorPosMatch ? parseInt(errorPosMatch[1]) : null;
-                
+                const errorPosMatch =
+                  fourthErrorMessage.match(/position (\d+)/);
+                const errorPos = errorPosMatch
+                  ? parseInt(errorPosMatch[1])
+                  : null;
+
                 let errorContext = "";
                 if (errorPos !== null && errorPos < extracted.length) {
                   const contextStart = Math.max(0, errorPos - 100);
                   const contextEnd = Math.min(extracted.length, errorPos + 100);
                   errorContext = extracted.substring(contextStart, contextEnd);
                 }
-                
+
                 console.error("All JSON parsing strategies failed:", {
                   original: getErrorMessage(firstError),
                   fixed: getErrorMessage(secondError),
@@ -194,12 +198,15 @@ export function parseAIResponseAsJSON<T = any>(response: AIResponse): T | null {
             }
           }
         }
-        
-        console.error("Failed to parse AI response as JSON after all strategies:", {
-          original: firstError,
-          fixed: secondError,
-          textPreview: text.substring(0, 500),
-        });
+
+        console.error(
+          "Failed to parse AI response as JSON after all strategies:",
+          {
+            original: firstError,
+            fixed: secondError,
+            textPreview: text.substring(0, 500),
+          },
+        );
         return null;
       }
     }

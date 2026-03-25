@@ -21,7 +21,6 @@ const Resume = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoadingImages, setIsLoadingImages] = useState(true);
   const [hasImprovedResume, setHasImprovedResume] = useState(false);
-  const [isSampleResume, setIsSampleResume] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -49,7 +48,6 @@ const Resume = () => {
 
         // Check if this is a sample resume
         const isSample = data.isSampleResume === true;
-        setIsSampleResume(isSample);
 
         // Set feedback immediately so UI can render
         if (data.feedback) {

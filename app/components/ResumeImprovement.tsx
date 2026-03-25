@@ -18,7 +18,7 @@ const getSkillsContent = (skills: ImprovedResume["skills"]): string => {
     ? `\n\nCertifications: ${skills.certifications!.join(", ")}`
     : "";
 
-  if (skills.allSkills) {
+  if (Array.isArray(skills.allSkills) && skills.allSkills.length > 0) {
     // Unified skills (no splitting)
     return `Skills: ${skills.allSkills.join(", ")}${certificationsText}`;
   }
@@ -391,7 +391,7 @@ const ResumeImprovement = ({ improvedResume }: ResumeImprovementProps) => {
             changes={improvedResume.skills.changes || ""}
           />
           <div className="space-y-4">
-            {improvedResume.skills.allSkills ? (
+            {Array.isArray(improvedResume.skills.allSkills) && improvedResume.skills.allSkills.length > 0 ? (
               // Unified skills display
               <div>
                 <h4 className="font-semibold text-gray-800 mb-2">Skills:</h4>

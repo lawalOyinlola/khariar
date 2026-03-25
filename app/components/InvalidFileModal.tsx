@@ -35,8 +35,7 @@ const InvalidFileModal = ({
 
   // Focus trap - keep focus within modal
   const modalRef = useRef<HTMLDivElement>(null);
-  const firstFocusableRef = useRef<HTMLButtonElement>(null);
-  const lastFocusableRef = useRef<HTMLButtonElement>(null);
+
 
   useEffect(() => {
     if (!isOpen) return;
@@ -124,7 +123,6 @@ const InvalidFileModal = ({
               File Type Mismatch
             </h2>
             <button
-              ref={firstFocusableRef}
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors"
               disabled={isGenerating}
@@ -202,7 +200,6 @@ const InvalidFileModal = ({
               Upload Another File
             </button>
             <button
-              ref={lastFocusableRef}
               onClick={onGenerateTemplate}
               disabled={isGenerating}
               className="flex-1 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"

@@ -44,7 +44,7 @@ export async function generateImprovedResume(
   } = options;
 
   try {
-       // Validate required parameters for non-sample mode
+    // Validate required parameters for non-sample mode
     if (!isSample && !feedback) {
       return {
         success: false,
