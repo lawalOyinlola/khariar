@@ -8,7 +8,7 @@ import { showError } from "~/lib/toast";
 import { extractErrorMessage } from "~/lib/error-handler";
 
 export const meta = () => [
-  { title: "Resumind | Review" },
+  { title: "KHARIAR | Review" },
   { name: "description", content: "Detailed overview of your resume" },
 ];
 
@@ -66,13 +66,10 @@ const Resume = () => {
             // Invalid JSON, treat as not existing
             setHasImprovedResume(false);
           }
-        } else {
-          setHasImprovedResume(false);
         }
 
         // Handle sample resumes (no actual PDF/image files)
-
-        if (isSampleResume) {
+        if (isSample) {
           // Sample resumes don't have PDF/image files - skip loading
           setIsLoadingImages(false);
           return;
@@ -113,7 +110,7 @@ const Resume = () => {
           console.error("Failed to load resume images:", error);
           setIsLoadingImages(false);
           // Only show error if it's not a sample resume (sample resumes don't have images)
-          if (!isSampleResume) {
+          if (!isSample) {
             const errorMessage = extractErrorMessage(error, "Failed to load resume images");
             showError("Image loading failed", errorMessage);
           }
@@ -187,6 +184,7 @@ const Resume = () => {
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -236,6 +234,7 @@ const Resume = () => {
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
+                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"
@@ -267,6 +266,7 @@ const Resume = () => {
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
+                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"
