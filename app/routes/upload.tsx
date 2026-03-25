@@ -45,16 +45,24 @@ const Upload = () => {
   });
 
   // Helper function to cleanup stored files on error
-  const cleanupFiles = async (resumePath: string | null, imagePath: string | null) => {
-    try {
-      if (resumePath) {
-        await fs.delete(resumePath).catch(console.error);
+  const cleanupFiles = async (resumePath: string | null, imagePath: string | null): Promise<void> => {
+    const errors: Error[] = [];
+    if (resumePath) {
+      try {
+        await fs.delete(resumePath);
+      } catch (e) {
+        errors.push(e instanceof Error ? e : new Error(String(e)));
       }
-      if (imagePath) {
-        await fs.delete(imagePath).catch(console.error);
+    }
+    if (imagePath) {
+      try {
+        await fs.delete(imagePath);
+      } catch (e) {
+        errors.push(e instanceof Error ? e : new Error(String(e)));
       }
-    } catch (error) {
-      console.error("Error cleaning up files:", error);
+    }
+    if (errors.length > 0) {
+      console.warn("Failed to cleanup some files:", errors);
     }
   };
 
@@ -65,9 +73,10 @@ const Upload = () => {
     }
   };
 
-  const validateField = (name: string, value: string | File | null): string | undefined => {
+
+  const validateRequired = (fieldLabel: string, value: string | File | null): string | undefined => {
     if (!value || (typeof value === "string" && value.trim() === "")) {
-      return `${name} is required`;
+      return `${fieldLabel} is required`;
     }
     return undefined;
   };
@@ -392,10 +401,10 @@ const Upload = () => {
 
     // Validate all fields
     const newErrors: typeof errors = {};
-    const companyNameError = validateField("Company Name", companyName);
-    const jobTitleError = validateField("Job Title", jobTitle);
-    const jobDescriptionError = validateField("Job Description", jobDescription);
-    const fileError = validateField("Resume File", file);
+    const companyNameError = validateRequired("Company Name", companyName);
+    const jobTitleError = validateRequired("Job Title", jobTitle);
+    const jobDescriptionError = validateRequired("Job Description", jobDescription);
+    const fileError = validateRequired("Resume File", file);
 
     if (companyNameError) newErrors.companyName = companyNameError;
     if (jobTitleError) newErrors.jobTitle = jobTitleError;
@@ -413,13 +422,6 @@ const Upload = () => {
 
     handleAnalyze({ companyName, jobTitle, jobDescription, file: file! });
   };
-
-  const openModal = ({ fileType, description }: { fileType: string, description: string }) => {
-    setInvalidFileModal({ isOpen: true, fileType: fileType, description: description });
-
-    document.body.style.overflow = "hidden";
-
-  }
 
   return (
     <main className="bg-[url('/images/bg-main.svg')] bg-cover">
@@ -504,7 +506,6 @@ const Upload = () => {
         isOpen={invalidFileModal.isOpen}
         onClose={async () => {
           setInvalidFileModal({ isOpen: false, fileType: "", description: "" });
-          document.body.style.overflow = "auto";
           // Cleanup temporary files if user closes modal without choosing an option
           await cleanupFiles(uploadedFilePath, tempImagePath);
           setUploadedFilePath(null);
