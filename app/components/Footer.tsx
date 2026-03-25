@@ -7,13 +7,13 @@ const Footer = () => {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="text-center md:text-left">
             <p className="text-sm">
-              © {currentYear} Resumind. All rights reserved.
+              © {currentYear} KHARIAR. All rights reserved.
             </p>
           </div>
           <div className="text-center md:text-right">
             <p className="text-sm">
               Built with ❤️ by{" "}
-              <span className="font-semibold text-white">YERO</span>
+              <span className="font-semibold text-white">YERO / LAWAL</span>
             </p>
           </div>
         </div>
