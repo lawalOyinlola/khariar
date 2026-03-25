@@ -3,6 +3,31 @@
  */
 
 /**
+ * Type guard to check if error has a message property
+ */
+function isErrorWithMessage(error: unknown): error is { message: string } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  );
+}
+
+/**
+ * Extracts error message from unknown error type
+ */
+function getErrorMessage(error: unknown): string {
+  if (isErrorWithMessage(error)) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+/**
  * Extracts text content from an AI response message
  */
 export function extractTextFromAIResponse(response: AIResponse): string | null {
@@ -76,11 +101,13 @@ function fixCommonJSONIssues(jsonString: string): string {
   
   // Fix unescaped quotes in strings (basic attempt)
   // This is tricky, so we'll be conservative
-  // Only fix if it's clearly a quote issue at the end of a string value
+  // Remove block comments
+  fixed = fixed.replace(/\/\*[\s\S]*?\*\//g, "");
   
-  // Remove comments (JSON doesn't support comments)
-  fixed = fixed.replace(/\/\*[\s\S]*?\*\//g, ""); // Remove /* */ comments
-  fixed = fixed.replace(/\/\/.*$/gm, ""); // Remove // comments
+  // Safely remove inline comments (//) avoiding those inside strings (like URLs)
+  fixed = fixed.replace(/("(?:[^"\\]|\\.)*")|(?:\/\/(?:(?!\n).)*)/g, (match, stringValue) => {
+    return stringValue || ""; 
+  });
   
   return fixed;
 }
@@ -136,9 +163,10 @@ export function parseAIResponseAsJSON<T = any>(response: AIResponse): T | null {
               try {
                 const fixedExtracted = fixCommonJSONIssues(extracted);
                 return JSON.parse(fixedExtracted) as T;
-              } catch (fourthError: any) {
+              } catch (fourthError: unknown) {
                 // Extract error position for better debugging
-                const errorPosMatch = fourthError?.message?.match(/position (\d+)/);
+                const fourthErrorMessage = getErrorMessage(fourthError);
+                const errorPosMatch = fourthErrorMessage.match(/position (\d+)/);
                 const errorPos = errorPosMatch ? parseInt(errorPosMatch[1]) : null;
                 
                 let errorContext = "";
@@ -149,10 +177,10 @@ export function parseAIResponseAsJSON<T = any>(response: AIResponse): T | null {
                 }
                 
                 console.error("All JSON parsing strategies failed:", {
-                  original: firstError?.message || firstError,
-                  fixed: secondError?.message || secondError,
-                  extracted: thirdError?.message || thirdError,
-                  fixedExtracted: fourthError?.message || fourthError,
+                  original: getErrorMessage(firstError),
+                  fixed: getErrorMessage(secondError),
+                  extracted: getErrorMessage(thirdError),
+                  fixedExtracted: fourthErrorMessage,
                   errorPosition: errorPos,
                   errorContext,
                   textLength: text.length,
