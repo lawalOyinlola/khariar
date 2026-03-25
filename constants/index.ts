@@ -376,7 +376,7 @@ export const prepareInstructions = ({
       Provide the feedback using EXACTLY the following JSON format:
       ${AIResponseFormat}
       
-      CRITICAL: Return ONLY the JSON object, without any markdown code blocks, without any explanatory text, and without any backticks. Just the raw JSON.`;
+      CRITICAL: Return ONLY the JSON object. Do NOT include any comments (like // or /* */) anywhere in your JSON output. Ensure the output is strictly valid, parsable JSON. No markdown code blocks, no explanatory text, no backticks.`;
 
 export const prepareSampleResumeInstructions = ({
   jobTitle,
@@ -418,21 +418,21 @@ REQUIREMENTS:
      * DO NOT create a separate "Certifications" section in additionalSections
    - NEVER duplicate certifications - they should appear only in skills.certifications
 
-3. ATS OPTIMIZATION:
+4. ATS OPTIMIZATION:
    - Use standard section headings (e.g., "Work Experience", "Education", "Skills")
    - Include relevant keywords from the job description naturally
    - Use standard date formats (MMM YYYY - MMM YYYY)
    - Use bullet points for achievements
    - Include quantifiable achievements (with placeholder numbers/metrics)
 
-4. CONTENT GUIDELINES:
+5. CONTENT GUIDELINES:
    - Make it entry to mid-level appropriate (1-2 pages ideal)
    - Include placeholder text that users can easily replace
    - Use [YOUR NAME], [YOUR EMAIL], [COMPANY NAME], etc. as placeholders
    - Make achievements relevant to the job description
    - Include action verbs and professional language
 
-5. FORMATTING:
+6. FORMATTING:
    - Professional and clean structure
    - Easy to edit and customize
    - ATS-friendly formatting
@@ -440,7 +440,7 @@ REQUIREMENTS:
 Generate the sample resume using EXACTLY the following JSON format:
 ${ImprovedResumeFormat}
 
-CRITICAL: Return ONLY the JSON object, without any markdown code blocks, without any explanatory text, and without any backticks. Just the raw JSON.`;
+CRITICAL: Return ONLY the JSON object. Do NOT include any comments (like // or /* */) anywhere in your JSON output. Ensure the output is strictly valid, parsable JSON. No markdown code blocks, no explanatory text, no backticks.`;
 
 export const ImprovedResumeFormat = `
       interface ImprovedResume {
@@ -691,4 +691,4 @@ CRITICAL REQUIREMENTS:
 Generate the improved resume using EXACTLY the following JSON format:
 ${ImprovedResumeFormat}
 
-CRITICAL: Return ONLY the JSON object, without any markdown code blocks, without any explanatory text, and without any backticks. Just the raw JSON.`;
+CRITICAL: Return ONLY the JSON object. Do NOT include any comments (like // or /* */) anywhere in your JSON output. Ensure the output is strictly valid, parsable JSON. No markdown code blocks, no explanatory text, no backticks.`;
